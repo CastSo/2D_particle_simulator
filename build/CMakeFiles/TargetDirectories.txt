@@ -1,0 +1,3 @@
+/home/cimex/Projects/Computer_Graphics/sand/build/CMakeFiles/sand.dir
+/home/cimex/Projects/Computer_Graphics/sand/build/CMakeFiles/edit_cache.dir
+/home/cimex/Projects/Computer_Graphics/sand/build/CMakeFiles/rebuild_cache.dir
