@@ -3,7 +3,5 @@
 
 struct Particle {
     unsigned int id;
-    unsigned int VAO;
-    unsigned int shader;
-    glm::vec3 color; 
+    glm::vec4 color; 
 };
