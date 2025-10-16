@@ -4,6 +4,7 @@
 
 GLFWwindow* window;
 
+int detect_mouse(int xN, int yN);
 void framebuffer_size_callback(GLFWwindow* window, int width, int height);
 void process_mouse(GLFWwindow* window, int button, int action, int mods);
 void processInput(GLFWwindow *window);
@@ -151,14 +152,20 @@ void render_gui(Tile body, Tile edge, Tile frame, std::unordered_map<std::string
     float xN = -1.0f + (2.0f * (xpos + 0.5f) ) * tileWidth;
     float yN = -1.0f + (2.0f * (ypos + 0.5f) ) * tileHeight; 
 
+    double xmouse, ymouse;
+    glfwGetCursorPos(window, &xmouse, &ymouse);
+    int ym = (int)(SCR_HEIGHT - std::floor(ymouse))/TILE_SIZE;
+    int xm = ((int)std::floor(xmouse))/TILE_SIZE;
     
     glBindVertexArray(edge.VAO);
 
     glm::mat4 transform = glm::mat4(1.0f);
     transform = glm::translate(transform, glm::vec3(xN, yN, 1.0f));
     transform = glm::scale(transform, glm::vec3(tileWidth, tileHeight, 1.0f));
-
-    glBindTexture(GL_TEXTURE_2D, edge.texture);
+    glActiveTexture(GL_TEXTURE0);
+    glBindTexture(GL_TEXTURE_2D, edge.mainTexture);
+    glActiveTexture(GL_TEXTURE1);
+    glBindTexture(GL_TEXTURE_2D, 0);
 
     //get matrix's uniform location and set matrix
     glUseProgram(frame.shader);
@@ -169,8 +176,9 @@ void render_gui(Tile body, Tile edge, Tile frame, std::unordered_map<std::string
     glUniform4f(bgColorLoc, edge.color.x, edge.color.y, edge.color.z, 0.0f); 
 
 
-
     glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, 0);
+
+    glBindTexture(GL_TEXTURE_2D, 0);
 
     auto p = particles.begin();
     for (int x = 1; x < (int)(SCR_WIDTH/TILE_SIZE); x++)
@@ -178,10 +186,24 @@ void render_gui(Tile body, Tile edge, Tile frame, std::unordered_map<std::string
         xN = -1.0f + (2.0f * (x + 0.5) ) * tileWidth;
         if (GUI_LAYOUT[x] != EMPTY)
         {
+
             //std::cout << GUI_LAYOUT[x] << std::endl;
-            glActiveTexture(GL_TEXTURE0);
             glBindVertexArray(frame.VAO);
-            glBindTexture(GL_TEXTURE_2D, frame.texture);
+
+            glActiveTexture(GL_TEXTURE0);
+            glBindTexture(GL_TEXTURE_2D, frame.mainTexture);
+
+            if(detect_mouse(xm, ym) != EMPTY)
+            {
+                glUniform1i(frame.isSelected, true);
+                glActiveTexture(GL_TEXTURE1);
+                glBindTexture(GL_TEXTURE_2D, frame.selectTexture);
+            }else {
+                glUniform1i(frame.isSelected, false);
+                glActiveTexture(GL_TEXTURE1);
+                glBindTexture(GL_TEXTURE_2D, 0);
+            }
+
 
             glm::mat4 transform = glm::mat4(1.0f);
             transform = glm::translate(transform, glm::vec3(xN, yN, 1.0f));
@@ -196,14 +218,15 @@ void render_gui(Tile body, Tile edge, Tile frame, std::unordered_map<std::string
             unsigned int bgColorLoc = glGetUniformLocation(frame.shader, "backgroundColor");
             glUniform4f(bgColorLoc, p->second.color.x, p->second.color.y, p->second.color.z, 1.0f); 
 
-           
             p++;
         
         }
         else {
             glBindVertexArray(body.VAO);
-            glBindTexture(GL_TEXTURE_2D, body.texture);
-
+            glActiveTexture(GL_TEXTURE0);
+            glBindTexture(GL_TEXTURE_2D, body.mainTexture);
+            glActiveTexture(GL_TEXTURE1);
+            glBindTexture(GL_TEXTURE_2D, 0);
 
             glm::mat4 transform = glm::mat4(1.0f);
             transform = glm::translate(transform, glm::vec3(xN, yN, 1.0f));
@@ -213,6 +236,7 @@ void render_gui(Tile body, Tile edge, Tile frame, std::unordered_map<std::string
             glUseProgram(body.shader);
             unsigned int transformLoc = glGetUniformLocation(body.shader, "transform");
             glUniformMatrix4fv(transformLoc, 1, GL_FALSE, glm::value_ptr(transform));
+
         }
         
         glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, 0);
@@ -248,7 +272,7 @@ unsigned int make_particle_mesh() {
     return VAO;
 }
 
-void make_tile_mesh(Tile& frame) {
+void make_tile_mesh(Tile& frame, std::string selectFramePath) {
     std::vector<float> vertices = {
          1.0f,  1.0f,  0.0f,   1.0f,  1.0f,  
          1.0f, -1.0f,  0.0f,   1.0f,  0.0f,
@@ -284,12 +308,12 @@ void make_tile_mesh(Tile& frame) {
     glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, 5 * sizeof(float), (void*)(3 * sizeof(float))); 
     glEnableVertexAttribArray(1);
 
-    unsigned int tileTexture;
+    unsigned int mainTexture, selectTexture;
 
-    glGenTextures(1, &tileTexture);
-    glBindTexture(GL_TEXTURE_2D, tileTexture); 
+    glGenTextures(1, &mainTexture);
+    glBindTexture(GL_TEXTURE_2D, mainTexture); 
      // set the texture wrapping parameters
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);	// set texture wrapping to GL_REPEAT (default wrapping method)
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
     // set texture filtering parameters
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
@@ -311,9 +335,42 @@ void make_tile_mesh(Tile& frame) {
     }
     stbi_image_free(data);
 
+    glGenTextures(1, &selectTexture);
+    glBindTexture(GL_TEXTURE_2D, selectTexture); 
+     // set the texture wrapping parameters
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);	// set texture wrapping to GL_REPEAT (default wrapping method)
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
+    // set texture filtering parameters
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+
+    stbi_set_flip_vertically_on_load(true); // tell stb_image.h to flip loaded texture's on the y-axis.
+
+    data = stbi_load(selectFramePath.c_str(), &width, &height, &nrChannels, 0);
+    if (data)
+    {
+        glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, width, height, 0, GL_RGBA, GL_UNSIGNED_BYTE, data);
+        glGenerateMipmap(GL_TEXTURE_2D);
+    }
+    else
+    {
+        std::cout << "Failed to load texture" << std::endl;
+    }
+    stbi_image_free(data);
+
+    glUseProgram(frame.shader);
+    unsigned int mainTexLoc = glGetUniformLocation(frame.shader, "mainTexture");
+    glUniform1i(mainTexLoc, 0);
+    unsigned int selectTexLoc = glGetUniformLocation(frame.shader, "selectTexture");
+    glUniform1i(selectTexLoc, 1);
+
+    unsigned int isSelectLoc = glGetUniformLocation(frame.shader, "isSelected");
+    glUniform1i(isSelectLoc, false);
     
     frame.VAO = VAO;
-    frame.texture = tileTexture;
+    frame.mainTexture = mainTexture;
+    frame.selectTexture = selectTexture;
+    frame.isSelected = isSelectLoc;
 }
 //END: MAKE MESHES
 
@@ -570,7 +627,37 @@ void setup_glfw() {
 
 }
 
+
 //START: PROCESS INPUT
+
+int detect_mouse(int xN, int yN) {
+    float tileWidth =  TILE_SIZE / (float)SCR_WIDTH;   
+    float tileHeight =  TILE_SIZE / (float)SCR_HEIGHT; 
+    int yG = -1.0 + (2.0f * (1)) * tileHeight;
+
+    
+    for (int x = 0; x < (int)(SCR_WIDTH/TILE_SIZE)/2; x++)
+    {
+        if(GUI_LAYOUT[x] == EMPTY)
+        {
+            continue;
+        }
+
+        float xG = x;
+        float prev_xG = x-1;
+        
+        if((yN <= yG && yN >= 0) && (xN <= xG && xN > prev_xG))
+        {
+            
+            
+            //std::cout << ACTIVE_PARTICLE << std::endl;
+            
+            return GUI_LAYOUT[x];
+        }
+    }
+    return EMPTY;
+}
+
 void processInput(GLFWwindow *window)
 {
     if (glfwGetKey(window, GLFW_KEY_ESCAPE) == GLFW_PRESS)
@@ -596,31 +683,13 @@ void process_mouse(GLFWwindow* window, int button, int action, int mods)
         mouseDown = false;
     }
 
-    
-    float tileWidth =  TILE_SIZE / (float)SCR_WIDTH;   
-    float tileHeight =  TILE_SIZE / (float)SCR_HEIGHT; 
-    int yG = -1.0 + (2.0f * (1)) * tileHeight;
-    
-    for (int x = 0; x < (int)(SCR_WIDTH/TILE_SIZE)/2; x++)
+    int selected_coords = detect_mouse(xN, yN);
+    if(detect_mouse(xN, yN) != EMPTY)
     {
-        if(GUI_LAYOUT[x] == EMPTY)
-        {
-            continue;
-        }
-
-        float xG = x;
-        float prev_xG = x-1;
-        //std::cout << "clicked: (" << xN << ", " << yN << ")" << " upperbound: (" << xG << ", " << yG << ")" << std::endl;
-        if((yN <= yG && yN >= 0) && (xN <= xG && xN > prev_xG))
-        {
-            
-            ACTIVE_PARTICLE = GUI_LAYOUT[x];
-           // std::cout << ACTIVE_PARTICLE << std::endl;
-            break;
-        }
+        ACTIVE_PARTICLE = selected_coords;
     }
+    
 }
-
 
 
 
@@ -674,26 +743,29 @@ int main()
     particles.insert({"WATER", waterParticle});
     particles.insert({"WALL", wallParticle});
 
+    std::string selectFramePath = "../images/select_frame.png";
+
     Tile particleButton;
     particleButton.imagePath = "../images/wood_frame.png";
     particleButton.shader = tileShader;
-    particleButton.dimension = 32;
+    particleButton.dimension = (int)TILE_SIZE;
     particleButton.color = {0.7f, 0.6f, 0.0f};
-    make_tile_mesh(particleButton);
+    make_tile_mesh(particleButton, selectFramePath);
 
     Tile logEdge;
     logEdge.imagePath = "../images/wood_edge.png";
     logEdge.shader = tileShader;
-    logEdge.dimension = 32;
+    logEdge.dimension = (int)TILE_SIZE;
     logEdge.color = {0.0f, 0.0f, 0.0f};
-    make_tile_mesh(logEdge);
+    make_tile_mesh(logEdge, selectFramePath);
 
     Tile logBody;
     logBody.imagePath = "../images/wood_body.png";
     logBody.shader = tileShader;
-    logBody.dimension = 32;
+    logBody.dimension = (int)TILE_SIZE;
     logEdge.color = {0.0f, 0.0f, 0.0f};
-    make_tile_mesh(logBody);
+    make_tile_mesh(logBody, selectFramePath);
+
 
 
     setup_map();
@@ -714,7 +786,7 @@ int main()
         }
 
 
-        glClearColor(0.14f, 0.16f, 0.21f, 1.0f);
+        glClearColor(1.0f, 1.0f, 1.0f, 1.0f);
         glClear(GL_COLOR_BUFFER_BIT);
 
 
