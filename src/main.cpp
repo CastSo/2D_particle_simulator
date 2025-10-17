@@ -16,7 +16,7 @@ int XBOUND = 8;
 
 const float POINT_SIZE = 4.0f;
 const float TILE_SIZE = 32.0f;
-const unsigned int MAX_PARTICLES = (SCR_WIDTH * SCR_HEIGHT) / 2;
+const unsigned int MAX_PARTICLES = (SCR_WIDTH * SCR_HEIGHT) / POINT_SIZE;
 
 int EMPTY = 0;
 int WALL = 1;
@@ -27,6 +27,12 @@ int GUI_LAYOUT[(int)(SCR_WIDTH/TILE_SIZE)];
 int ACTIVE_PARTICLE;
 
 
+struct ParticleMesh {
+
+    unsigned int VAO;
+    unsigned int transformVBO;
+    unsigned int colorVBO;
+};
 
 bool mouseDown;
 
@@ -71,7 +77,7 @@ void setup_gui(std::unordered_map<std::string, Particle> particles) {
 //END: SETUP LAYOUT
 
 //START: RENDER OBJECTS
-std::vector<glm::vec2> map_particle(int x, int y, std::vector<glm::vec2> translations)
+glm::vec2 map_particle(int x, int y)
 {
     // //Normalize pixel to screen
     float cellWidth =  POINT_SIZE / (float)SCR_WIDTH;   
@@ -82,15 +88,13 @@ std::vector<glm::vec2> map_particle(int x, int y, std::vector<glm::vec2> transla
     float yCellPos = -1.0f + (2.0f * (y + 0.5f) ) * cellHeight; 
 
 
-    translations.push_back(glm::vec2{xCellPos, yCellPos});
+    return glm::vec2{xCellPos, yCellPos};
 
-    return translations;
 }
 
-void render_map(GLFWwindow *window, std::unordered_map<std::string, Particle> particles, unsigned int VAO, 
-                unsigned int shader, unsigned int transformVBO, unsigned int colorVBO) {
-    glBindVertexArray(VAO);
-    glUseProgram(shader);
+void render_particles(GLFWwindow *window, ParticleMesh mesh, std::unordered_map<std::string, Particle> particles, 
+                unsigned int shader) {
+
     std::vector<glm::vec2> translations;
     std::vector<glm::vec4> colors;
 
@@ -101,49 +105,47 @@ void render_map(GLFWwindow *window, std::unordered_map<std::string, Particle> pa
         {
             if(MAP[y][x] == SAND) 
             {
-                translations = map_particle(x, y, translations);
+                translations.push_back(map_particle(x, y));
                 colors.push_back(particles.at("SAND").color);
            }else if (MAP[y][x] == WATER) {
-                translations = map_particle(x, y, translations);
+                translations.push_back(map_particle(x, y));
                 colors.push_back(particles.at("WATER").color);
             }else if (MAP[y][x] == WALL) {
-                translations = map_particle(x, y, translations);
+                translations.push_back(map_particle(x, y));
                 colors.push_back(particles.at("WALL").color);
             }
     }
 }
+
+    if(translations.size() == 0 )
+    {
+        return;
+    } else if (translations.size() == MAX_PARTICLES-1)
+    {
+        std::cout << "Reach MAX_PARTILCES" << std::endl;
+        return;
+    }
  
-    glBindBuffer(GL_ARRAY_BUFFER, transformVBO);
-    //set to dynamic 
-    glBufferData(GL_ARRAY_BUFFER, sizeof(glm::vec2) * translations.size(),  translations.data(), GL_STATIC_DRAW);
-    glBindBuffer(GL_ARRAY_BUFFER, 0);
+    glBindBuffer(GL_ARRAY_BUFFER, mesh.transformVBO);
+    glBufferData(GL_ARRAY_BUFFER, sizeof(glm::vec2) * MAX_PARTICLES,  NULL, GL_STREAM_DRAW);
+    glBufferSubData(GL_ARRAY_BUFFER, 0, sizeof(glm::vec2)* translations.size(), translations.data());
 
-    glEnableVertexAttribArray(1);
-    glBindBuffer(GL_ARRAY_BUFFER, transformVBO); 
-    glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, sizeof(glm::vec2), (void*)0);
+    
+    glBindBuffer(GL_ARRAY_BUFFER, mesh.colorVBO);
+    glBufferData(GL_ARRAY_BUFFER, sizeof(glm::vec4) * MAX_PARTICLES,  NULL, GL_STREAM_DRAW);
+    glBufferSubData(GL_ARRAY_BUFFER, 0, sizeof(glm::vec4)* colors.size(), colors.data());
 
-    glBindBuffer(GL_ARRAY_BUFFER, transformVBO);
-    glVertexAttribDivisor(1, 1); 
-
-    glBindBuffer(GL_ARRAY_BUFFER, colorVBO);
-
-    glBufferData(GL_ARRAY_BUFFER, sizeof(glm::vec4) * colors.size(),  colors.data(), GL_STATIC_DRAW);
-    glBindBuffer(GL_ARRAY_BUFFER, 0);
-
-    glEnableVertexAttribArray(2);
-    glBindBuffer(GL_ARRAY_BUFFER, colorVBO);
-    glVertexAttribPointer(2, 4, GL_FLOAT, GL_FALSE, sizeof(glm::vec4), (void*)0);
-
-    glBindBuffer(GL_ARRAY_BUFFER, colorVBO);
-    glVertexAttribDivisor(2, 1); 
 
     glPointSize(POINT_SIZE);
-
-    glDrawArraysInstanced(GL_POINTS, 0, 1, (GLsizei)translations.size());
+    glBindVertexArray(mesh.VAO);
+    glUseProgram(shader);
+    
+    glDrawArraysInstanced(GL_POINTS, 0, 1, translations.size());
+    glBindBuffer(GL_ARRAY_BUFFER, 0);
 }
 
 
-void render_gui(Tile body, Tile edge, Tile frame, std::unordered_map<std::string, Particle> particles) {
+void render_gui(unsigned int VAO, unsigned int shader, Tile body, Tile edge, Tile frame, std::unordered_map<std::string, Particle> particles) {
     float tileWidth =  TILE_SIZE / (float)SCR_WIDTH;   
     float tileHeight =  TILE_SIZE / (float)SCR_HEIGHT; 
      
@@ -157,27 +159,29 @@ void render_gui(Tile body, Tile edge, Tile frame, std::unordered_map<std::string
     int ym = (int)(SCR_HEIGHT - std::floor(ymouse))/TILE_SIZE;
     int xm = ((int)std::floor(xmouse))/TILE_SIZE;
     
-    glBindVertexArray(edge.VAO);
+    glBindVertexArray(VAO);
+    glUseProgram(shader);
 
     glm::mat4 transform = glm::mat4(1.0f);
     transform = glm::translate(transform, glm::vec3(xN, yN, 1.0f));
     transform = glm::scale(transform, glm::vec3(tileWidth, tileHeight, 1.0f));
     glActiveTexture(GL_TEXTURE0);
     glBindTexture(GL_TEXTURE_2D, edge.mainTexture);
+
+    glUniform1i(frame.isSelected, false);
     glActiveTexture(GL_TEXTURE1);
     glBindTexture(GL_TEXTURE_2D, 0);
 
     //get matrix's uniform location and set matrix
-    glUseProgram(frame.shader);
-    unsigned int transformLoc = glGetUniformLocation(frame.shader, "transform");
+    
+    unsigned int transformLoc = glGetUniformLocation(shader, "transform");
     glUniformMatrix4fv(transformLoc, 1, GL_FALSE, glm::value_ptr(transform));
 
-    unsigned int bgColorLoc = glGetUniformLocation(frame.shader, "backgroundColor");
+    unsigned int bgColorLoc = glGetUniformLocation(shader, "backgroundColor");
     glUniform4f(bgColorLoc, edge.color.x, edge.color.y, edge.color.z, 0.0f); 
 
 
     glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, 0);
-
     glBindTexture(GL_TEXTURE_2D, 0);
 
     auto p = particles.begin();
@@ -188,12 +192,12 @@ void render_gui(Tile body, Tile edge, Tile frame, std::unordered_map<std::string
         {
 
             //std::cout << GUI_LAYOUT[x] << std::endl;
-            glBindVertexArray(frame.VAO);
+            // glBindVertexArray(frame.VAO);
 
             glActiveTexture(GL_TEXTURE0);
             glBindTexture(GL_TEXTURE_2D, frame.mainTexture);
 
-            if(detect_mouse(xm, ym) != EMPTY)
+            if(detect_mouse(xm, ym) == GUI_LAYOUT[x])
             {
                 glUniform1i(frame.isSelected, true);
                 glActiveTexture(GL_TEXTURE1);
@@ -210,37 +214,38 @@ void render_gui(Tile body, Tile edge, Tile frame, std::unordered_map<std::string
             transform = glm::scale(transform, glm::vec3(tileWidth, tileHeight, 1.0f));
 
             //get matrix's uniform location and set matrix
-            glUseProgram(frame.shader);
-            unsigned int transformLoc = glGetUniformLocation(frame.shader, "transform");
+            unsigned int transformLoc = glGetUniformLocation(shader, "transform");
             glUniformMatrix4fv(transformLoc, 1, GL_FALSE, glm::value_ptr(transform));        
             
 
-            unsigned int bgColorLoc = glGetUniformLocation(frame.shader, "backgroundColor");
+            unsigned int bgColorLoc = glGetUniformLocation(shader, "backgroundColor");
             glUniform4f(bgColorLoc, p->second.color.x, p->second.color.y, p->second.color.z, 1.0f); 
 
             p++;
         
         }
         else {
-            glBindVertexArray(body.VAO);
+            // glBindVertexArray(body.VAO);
             glActiveTexture(GL_TEXTURE0);
             glBindTexture(GL_TEXTURE_2D, body.mainTexture);
-            glActiveTexture(GL_TEXTURE1);
-            glBindTexture(GL_TEXTURE_2D, 0);
 
             glm::mat4 transform = glm::mat4(1.0f);
             transform = glm::translate(transform, glm::vec3(xN, yN, 1.0f));
             transform = glm::scale(transform, glm::vec3(tileWidth, tileHeight, 1.0f));
 
             //get matrix's uniform location and set matrix
-            glUseProgram(body.shader);
-            unsigned int transformLoc = glGetUniformLocation(body.shader, "transform");
+            glUseProgram(shader);
+            unsigned int transformLoc = glGetUniformLocation(shader, "transform");
             glUniformMatrix4fv(transformLoc, 1, GL_FALSE, glm::value_ptr(transform));
 
         }
         
         glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, 0);
 
+        //Resets texture to just main
+        glUniform1i(frame.isSelected, false);
+        glActiveTexture(GL_TEXTURE1);
+        glBindTexture(GL_TEXTURE_2D, 0);
         
     }
     
@@ -250,7 +255,7 @@ void render_gui(Tile body, Tile edge, Tile frame, std::unordered_map<std::string
 //END:RENDER OBJECTS
 
 //START: MAKE MESHES
-unsigned int make_particle_mesh() {
+ParticleMesh make_particle_mesh(ParticleMesh particleMesh) {
     unsigned int VBO, VAO, EBO;
     std::vector<float> vertices = {
         0.0f, 0.0f
@@ -263,51 +268,44 @@ unsigned int make_particle_mesh() {
     glBindBuffer(GL_ARRAY_BUFFER, VBO);
 
     glBufferData(GL_ARRAY_BUFFER, vertices.size() * sizeof(float), vertices.data(), GL_STATIC_DRAW);
-    glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, 5 * sizeof(float), (void*)0);
     glEnableVertexAttribArray(0);
+    glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, 2 * sizeof(float), (void*)0);
+    
+    unsigned int transformVBO, colorVBO;
 
+    //generates a VBO
+    glGenBuffers(1, &transformVBO);
+    glBindBuffer(GL_ARRAY_BUFFER, transformVBO);
+    //passes through shader
+    glBufferData(GL_ARRAY_BUFFER, sizeof(glm::vec2) * MAX_PARTICLES,  NULL, GL_STREAM_DRAW);
+    glEnableVertexAttribArray(1);
+    glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, sizeof(glm::vec2), (void*)0);
+    glVertexAttribDivisor(1, 1); 
+
+    //generates a VBO
+    glGenBuffers(1, &colorVBO);
+    glBindBuffer(GL_ARRAY_BUFFER, colorVBO);
+    glBufferData(GL_ARRAY_BUFFER, sizeof(glm::vec4) * MAX_PARTICLES,  NULL, GL_STREAM_DRAW);
+    //passes through shader
+    glEnableVertexAttribArray(2);
+    glVertexAttribPointer(2, 4, GL_FLOAT, GL_FALSE, sizeof(glm::vec4), (void*)0);
+    glVertexAttribDivisor(2, 1); 
+
+    
     glBindBuffer(GL_ARRAY_BUFFER, 0); 
-    glBindVertexArray(0); 
+    //unbinds buffer
+    glBindVertexArray(0);     
+    
+    particleMesh.VAO = VAO;
+    particleMesh.transformVBO = transformVBO;
+    particleMesh.colorVBO = colorVBO;
 
-    return VAO;
+    return particleMesh;
+    
 }
 
-void make_tile_mesh(Tile& frame, std::string selectFramePath) {
-    std::vector<float> vertices = {
-         1.0f,  1.0f,  0.0f,   1.0f,  1.0f,  
-         1.0f, -1.0f,  0.0f,   1.0f,  0.0f,
-        -1.0f, -1.0f,  0.0f,   0.0f,  0.0f,
-        -1.0f,  1.0f,  0.0f,   0.0f,  1.0f
-    };
-
-    std::vector<unsigned int> indices = {
-        3, 1, 2,
-        3, 0, 1
-    };
-
-    unsigned int VAO, VBO, EBO;
-
-    glGenVertexArrays(1, &VAO);
-    glGenBuffers(1, &VBO);
-    glGenBuffers(1, &EBO);
-
-
-    glBindVertexArray(VAO);
-
-    glBindBuffer(GL_ARRAY_BUFFER, VBO);
-    glBufferData(GL_ARRAY_BUFFER, vertices.size() * sizeof(float), vertices.data(), GL_STATIC_DRAW);
-
-    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, EBO);
-    glBufferData(GL_ELEMENT_ARRAY_BUFFER, indices.size() * sizeof(unsigned int), indices.data(), GL_STATIC_DRAW);
-
-    //position attribute
-    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 5 * sizeof(float), (void*)0);
-    glEnableVertexAttribArray(0);
-
-    //texture attribute
-    glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, 5 * sizeof(float), (void*)(3 * sizeof(float))); 
-    glEnableVertexAttribArray(1);
-
+void make_tile_textures(unsigned int shader, Tile& frame, std::string selectFramePath) 
+{
     unsigned int mainTexture, selectTexture;
 
     glGenTextures(1, &mainTexture);
@@ -358,19 +356,61 @@ void make_tile_mesh(Tile& frame, std::string selectFramePath) {
     }
     stbi_image_free(data);
 
-    glUseProgram(frame.shader);
-    unsigned int mainTexLoc = glGetUniformLocation(frame.shader, "mainTexture");
+    glUseProgram(shader);
+    unsigned int mainTexLoc = glGetUniformLocation(shader, "mainTexture");
     glUniform1i(mainTexLoc, 0);
-    unsigned int selectTexLoc = glGetUniformLocation(frame.shader, "selectTexture");
+    unsigned int selectTexLoc = glGetUniformLocation(shader, "selectTexture");
     glUniform1i(selectTexLoc, 1);
+    
 
-    unsigned int isSelectLoc = glGetUniformLocation(frame.shader, "isSelected");
+    unsigned int isSelectLoc = glGetUniformLocation(shader, "isSelected");
     glUniform1i(isSelectLoc, false);
     
-    frame.VAO = VAO;
+
     frame.mainTexture = mainTexture;
     frame.selectTexture = selectTexture;
     frame.isSelected = isSelectLoc;
+}
+
+unsigned int make_tile_mesh() {
+    std::vector<float> vertices = {
+         1.0f,  1.0f,  0.0f,   1.0f,  1.0f,  
+         1.0f, -1.0f,  0.0f,   1.0f,  0.0f,
+        -1.0f, -1.0f,  0.0f,   0.0f,  0.0f,
+        -1.0f,  1.0f,  0.0f,   0.0f,  1.0f
+    };
+
+    std::vector<unsigned int> indices = {
+        3, 1, 2,
+        3, 0, 1
+    };
+
+    unsigned int VAO, VBO, EBO;
+
+    glGenVertexArrays(1, &VAO);
+    glGenBuffers(1, &VBO);
+    glGenBuffers(1, &EBO);
+
+
+    glBindVertexArray(VAO);
+
+    glBindBuffer(GL_ARRAY_BUFFER, VBO);
+    glBufferData(GL_ARRAY_BUFFER, vertices.size() * sizeof(float), vertices.data(), GL_STATIC_DRAW);
+
+    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, EBO);
+    glBufferData(GL_ELEMENT_ARRAY_BUFFER, indices.size() * sizeof(unsigned int), indices.data(), GL_STATIC_DRAW);
+
+    //position attribute
+    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 5 * sizeof(float), (void*)0);
+    glEnableVertexAttribArray(0);
+
+    //texture attribute
+    glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, 5 * sizeof(float), (void*)(3 * sizeof(float))); 
+    glEnableVertexAttribArray(1);
+
+        
+
+    return VAO;
 }
 //END: MAKE MESHES
 
@@ -719,13 +759,8 @@ int main()
         "../src/view/tile_shader.frag"
     );
     
-    unsigned int particleVAO = make_particle_mesh();
-
-    unsigned int transformVBO;
-    glGenBuffers(1, &transformVBO);
-
-    unsigned int colorVBO;
-    glGenBuffers(1, &colorVBO);
+    ParticleMesh particleMesh;
+    particleMesh = make_particle_mesh(particleMesh);
 
     Particle sandParticle;
     sandParticle.id = 2;
@@ -745,26 +780,25 @@ int main()
 
     std::string selectFramePath = "../images/select_frame.png";
 
+    unsigned int tileVAO = make_tile_mesh();
+
     Tile particleButton;
     particleButton.imagePath = "../images/wood_frame.png";
-    particleButton.shader = tileShader;
     particleButton.dimension = (int)TILE_SIZE;
     particleButton.color = {0.7f, 0.6f, 0.0f};
-    make_tile_mesh(particleButton, selectFramePath);
+    make_tile_textures(tileShader, particleButton, selectFramePath);
 
     Tile logEdge;
     logEdge.imagePath = "../images/wood_edge.png";
-    logEdge.shader = tileShader;
     logEdge.dimension = (int)TILE_SIZE;
     logEdge.color = {0.0f, 0.0f, 0.0f};
-    make_tile_mesh(logEdge, selectFramePath);
+    make_tile_textures(tileShader, logEdge, selectFramePath);
 
     Tile logBody;
     logBody.imagePath = "../images/wood_body.png";
-    logBody.shader = tileShader;
     logBody.dimension = (int)TILE_SIZE;
     logEdge.color = {0.0f, 0.0f, 0.0f};
-    make_tile_mesh(logBody, selectFramePath);
+    make_tile_textures(tileShader, logBody, selectFramePath);
 
 
 
@@ -793,9 +827,9 @@ int main()
         map_think(itrThink[itr_i][0], itrThink[itr_i][1]);
 
         //draw_tiles();
-        render_map(window, particles, particleVAO, particleShader, transformVBO, colorVBO);
+        render_particles(window, particleMesh, particles, particleShader);
 
-        render_gui(logBody, logEdge, particleButton, particles);
+        render_gui(tileVAO, tileShader,logBody, logEdge, particleButton, particles);
         
         if (itr_i < 3){    
             itr_i += 1;
