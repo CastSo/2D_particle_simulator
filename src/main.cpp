@@ -12,16 +12,18 @@ void processInput(GLFWwindow *window);
 const unsigned int SCR_WIDTH = 800;
 const unsigned int SCR_HEIGHT = 640;
 int YBOUND = 8;
-int XBOUND = 8;
+int XBOUND = 1;
 
 const float POINT_SIZE = 4.0f;
 const float TILE_SIZE = 32.0f;
-const unsigned int MAX_PARTICLES = (SCR_WIDTH * SCR_HEIGHT) / POINT_SIZE;
+const unsigned int MAX_PARTICLES = ((SCR_WIDTH/ POINT_SIZE) * (SCR_HEIGHT/ POINT_SIZE));
 
 int EMPTY = 0;
-int WALL = 1;
+int WOOD = 1;
 int SAND = 2;
 int WATER = 3;
+int GAS = 4;
+int FIRE = 5;
 int MAP[(int)(SCR_HEIGHT/POINT_SIZE)][(int)(SCR_WIDTH/POINT_SIZE)];
 int GUI_LAYOUT[(int)(SCR_WIDTH/TILE_SIZE)];
 int ACTIVE_PARTICLE;
@@ -77,8 +79,9 @@ void setup_gui(std::unordered_map<std::string, Particle> particles) {
 //END: SETUP LAYOUT
 
 //START: RENDER OBJECTS
-glm::vec2 map_particle(int x, int y)
+glm::mat4 map_particle(int x, int y)
 {
+    glm::mat4 transform = glm::mat4(1.0f);
     // //Normalize pixel to screen
     float cellWidth =  POINT_SIZE / (float)SCR_WIDTH;   
     float cellHeight =  POINT_SIZE / (float)SCR_HEIGHT; 
@@ -87,17 +90,20 @@ glm::vec2 map_particle(int x, int y)
     float xCellPos = -1.0f + (2.0f * (x + 0.5f) ) * cellWidth;
     float yCellPos = -1.0f + (2.0f * (y + 0.5f) ) * cellHeight; 
 
+    transform = glm::translate(transform, glm::vec3(xCellPos, yCellPos, 1.0f));
 
-    return glm::vec2{xCellPos, yCellPos};
+
+    return transform;
 
 }
 
 void render_particles(GLFWwindow *window, ParticleMesh mesh, std::unordered_map<std::string, Particle> particles, 
                 unsigned int shader) {
 
-    std::vector<glm::vec2> translations;
+    std::vector<glm::mat4> transforms;
     std::vector<glm::vec4> colors;
 
+    glPointSize(POINT_SIZE);
     int particleCount = 0; 
     for (int y = YBOUND; y < ((int)(SCR_HEIGHT/POINT_SIZE))-YBOUND; y++)
     {
@@ -105,30 +111,36 @@ void render_particles(GLFWwindow *window, ParticleMesh mesh, std::unordered_map<
         {
             if(MAP[y][x] == SAND) 
             {
-                translations.push_back(map_particle(x, y));
+                transforms.push_back(map_particle(x, y));
                 colors.push_back(particles.at("SAND").color);
            }else if (MAP[y][x] == WATER) {
-                translations.push_back(map_particle(x, y));
+                transforms.push_back(map_particle(x, y));
                 colors.push_back(particles.at("WATER").color);
-            }else if (MAP[y][x] == WALL) {
-                translations.push_back(map_particle(x, y));
-                colors.push_back(particles.at("WALL").color);
+            }else if (MAP[y][x] == WOOD) {
+                transforms.push_back(map_particle(x, y));
+                colors.push_back(particles.at("WOOD").color);
+            } else if (MAP[y][x] == GAS) {
+                transforms.push_back(map_particle(x, y));
+                colors.push_back(particles.at("GAS").color);
+            } else if (MAP[y][x] == FIRE) {
+                transforms.push_back(map_particle(x, y));
+                colors.push_back(particles.at("FIRE").color);
             }
     }
 }
 
-    if(translations.size() == 0 )
+    if(transforms.size() == 0 )
     {
         return;
-    } else if (translations.size() == MAX_PARTICLES-1)
+    } else if (transforms.size() == MAX_PARTICLES-1)
     {
-        std::cout << "Reach MAX_PARTILCES" << std::endl;
+        std::cout << "Reach MAX_PARTICLES" << std::endl;
         return;
     }
  
     glBindBuffer(GL_ARRAY_BUFFER, mesh.transformVBO);
-    glBufferData(GL_ARRAY_BUFFER, sizeof(glm::vec2) * MAX_PARTICLES,  NULL, GL_STREAM_DRAW);
-    glBufferSubData(GL_ARRAY_BUFFER, 0, sizeof(glm::vec2)* translations.size(), translations.data());
+    glBufferData(GL_ARRAY_BUFFER, sizeof(glm::mat4) * MAX_PARTICLES,  NULL, GL_STREAM_DRAW);
+    glBufferSubData(GL_ARRAY_BUFFER, 0, sizeof(glm::mat4)* transforms.size(), transforms.data());
 
     
     glBindBuffer(GL_ARRAY_BUFFER, mesh.colorVBO);
@@ -136,11 +148,11 @@ void render_particles(GLFWwindow *window, ParticleMesh mesh, std::unordered_map<
     glBufferSubData(GL_ARRAY_BUFFER, 0, sizeof(glm::vec4)* colors.size(), colors.data());
 
 
-    glPointSize(POINT_SIZE);
+    
     glBindVertexArray(mesh.VAO);
     glUseProgram(shader);
     
-    glDrawArraysInstanced(GL_POINTS, 0, 1, translations.size());
+    glDrawArraysInstanced(GL_POINTS, 0, 1, transforms.size());
     glBindBuffer(GL_ARRAY_BUFFER, 0);
 }
 
@@ -277,19 +289,33 @@ ParticleMesh make_particle_mesh(ParticleMesh particleMesh) {
     glGenBuffers(1, &transformVBO);
     glBindBuffer(GL_ARRAY_BUFFER, transformVBO);
     //passes through shader
-    glBufferData(GL_ARRAY_BUFFER, sizeof(glm::vec2) * MAX_PARTICLES,  NULL, GL_STREAM_DRAW);
+    glBufferData(GL_ARRAY_BUFFER, sizeof(glm::mat4) * MAX_PARTICLES,  NULL, GL_STREAM_DRAW);
+    std::size_t vec4Size = sizeof(glm::vec4);
+
     glEnableVertexAttribArray(1);
-    glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, sizeof(glm::vec2), (void*)0);
-    glVertexAttribDivisor(1, 1); 
+    glVertexAttribPointer(1, 4, GL_FLOAT, GL_FALSE, sizeof(glm::mat4), (void*)(0 * vec4Size));
+    glVertexAttribDivisor(1, 1);
+
+    glEnableVertexAttribArray(2);
+    glVertexAttribPointer(2, 4, GL_FLOAT, GL_FALSE, sizeof(glm::mat4), (void*)(1 * vec4Size));
+    glVertexAttribDivisor(2, 1);
+
+    glEnableVertexAttribArray(3);
+    glVertexAttribPointer(3, 4, GL_FLOAT, GL_FALSE, sizeof(glm::mat4), (void*)(2 * vec4Size));
+    glVertexAttribDivisor(3, 1);
+
+    glEnableVertexAttribArray(4);
+    glVertexAttribPointer(4, 4, GL_FLOAT, GL_FALSE, sizeof(glm::mat4), (void*)(3 * vec4Size));
+    glVertexAttribDivisor(4, 1);
 
     //generates a VBO
     glGenBuffers(1, &colorVBO);
     glBindBuffer(GL_ARRAY_BUFFER, colorVBO);
     glBufferData(GL_ARRAY_BUFFER, sizeof(glm::vec4) * MAX_PARTICLES,  NULL, GL_STREAM_DRAW);
     //passes through shader
-    glEnableVertexAttribArray(2);
-    glVertexAttribPointer(2, 4, GL_FLOAT, GL_FALSE, sizeof(glm::vec4), (void*)0);
-    glVertexAttribDivisor(2, 1); 
+    glEnableVertexAttribArray(5);
+    glVertexAttribPointer(5, 4, GL_FLOAT, GL_FALSE, sizeof(glm::vec4), (void*)0);
+    glVertexAttribDivisor(5, 1); 
 
     
     glBindBuffer(GL_ARRAY_BUFFER, 0); 
@@ -407,7 +433,7 @@ unsigned int make_tile_mesh() {
     //texture attribute
     glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, 5 * sizeof(float), (void*)(3 * sizeof(float))); 
     glEnableVertexAttribArray(1);
-
+    
         
 
     return VAO;
@@ -415,60 +441,59 @@ unsigned int make_tile_mesh() {
 //END: MAKE MESHES
 
 void add_particles(GLFWwindow *window, int id) {
+    
     // grid setup
     // // mouse in screen coords
-    // double xpos, ypos;
-    // glfwGetCursorPos(window, &xpos, &ypos);
-
-    // // normalizes to NDC
-    // int yNormal = (SCR_HEIGHT - (int)std::floor(ypos))/POINT_SIZE;
-    // int xNormal = ((int)std::floor(xpos))/POINT_SIZE;
-
-
-    // MAP[yNormal][xNormal] = id;
-
     double xpos, ypos;
     glfwGetCursorPos(window, &xpos, &ypos);
 
-    // normalizes to tilemap
+    // normalizes to NDC
     int yN = (SCR_HEIGHT - (int)std::floor(ypos))/POINT_SIZE;
-    int xN = ((int)std::floor(xpos))/POINT_SIZE;
+    int xN= ((int)std::floor(xpos))/POINT_SIZE;
+
+    int r = 2;
     
-    int r = 6;
+    if (id == WOOD)
+    {    
+    
+        r = 8;
+        
+    }
+
     int t1 = r / 16;
     int t2 = 0;
     int x = r;
     int y = 0;
 
     if(!((xN-x) < XBOUND || (xN+x) > ((int)SCR_WIDTH/POINT_SIZE)-XBOUND ||
-        (yN-y) < YBOUND || (yN+y) > ((int)SCR_HEIGHT/POINT_SIZE)-YBOUND))
-        {
-            while (x >= y)
+            (yN-y) < YBOUND || (yN+y) > ((int)SCR_HEIGHT/POINT_SIZE)-YBOUND))
             {
-                MAP[yN+x][xN+y] = id;
-                MAP[yN-x][xN+y] = id;
-                MAP[yN+x][xN-y] = id;
-                MAP[yN-x][xN-y] = id;
-                MAP[yN+y][xN+x] = id;
-                MAP[yN+y][xN-x] = id;
-                MAP[yN-y][xN+x] = id;
-                MAP[yN-y][xN-x] = id;
-                
-                y = y + 1;
-                t1 = t1 + y;
-                t2 = t1 - x;
-                if(t2 >= 0)
+                while (x >= y)
                 {
-                    t1 = t2;
-                    x = x-1;
+                    MAP[yN+x][xN+y] = id;
+                    MAP[yN-x][xN+y] = id;
+                    MAP[yN+x][xN-y] = id;
+                    MAP[yN-x][xN-y] = id;
+                    MAP[yN+y][xN+x] = id;
+                    MAP[yN+y][xN-x] = id;
+                    MAP[yN-y][xN+x] = id;
+                    MAP[yN-y][xN-x] = id;
+                    
+                    y = y + 1;
+                    t1 = t1 + y;
+                    t2 = t1 - x;
+                    if(t2 >= 0)
+                    {
+                        t1 = t2;
+                        x = x-1;
+                    }
                 }
-            }
-    }
+        }
 
 }
 
 //START: PARTICLE RULES
-std::vector<int> define_rule(int material, int perm, std::vector<int> state)
+std::vector<int> define_rule(int material, int permutation, std::vector<int> state)
 {
     std::vector<int> rule;
     std::vector<std::vector<int>> ruleset = {
@@ -479,12 +504,234 @@ std::vector<int> define_rule(int material, int perm, std::vector<int> state)
     };
     for(int i=0; i<4; i++)
     {   
-            if(state[i] == EMPTY || state[i] == material)
-                rule.push_back(ruleset[perm][i]);
-            else //Non empty and current material block stays in place
+
+            if (material == FIRE)
+            {
+                if(state[i] == EMPTY || state[i] == material || state[i] == WOOD)//Passes only through empty, wood, and same material
+                {    
+                    rule.push_back(ruleset[permutation][i]);
+                }else
+                {
+                    rule.push_back(state[i]);
+                }   
+                continue;
+            }
+            if(state[i] == EMPTY || state[i] == material)//Passes only through empty and same material
+            {    
+                rule.push_back(ruleset[permutation][i]);
+            }else
+            {
                 rule.push_back(state[i]);
+            }
+
+            
     }
     return rule;
+}
+
+
+std::vector<int> fire_rules(int mat, int ul, int ur, int ll, int lr) {
+    std::vector<int> state = {ul,ur,ll,lr};
+    srand(time(NULL));
+    int p = 1+(rand() % 4);
+
+    if (ul == mat && ur != mat && ll != mat && lr != mat) { //p1
+        
+        if(p == 1)
+        {
+            return define_rule(mat, 8, state);
+        }
+        return define_rule(mat, 2, state);
+        
+    }
+    if (ul != mat && ur == mat && ll != mat && lr != mat) { //p2
+
+        if(p == 1)
+        {
+            return define_rule(mat, 4, state);
+        }
+        return define_rule(mat, 1, state);
+        
+    }
+    if (ul != mat && ur != mat && ll != mat && lr == mat) {//p8
+
+        if(p == 1)
+        {
+            return define_rule(mat, 8, state);
+        }
+        return define_rule(mat, 2, state);
+
+    }
+    if (ul != mat && ur != mat && ll == mat && lr != mat) {//p4
+        if(p == 1)
+        {
+            return define_rule(mat, 4, state);
+        }
+        return define_rule(mat, 1, state);
+       
+    } 
+    if (ul != mat && ur != mat && ll == mat && lr == mat) {//p12
+        if (p == 1)
+        {
+            return define_rule(mat, 6, state);
+        }
+        return define_rule(mat, 9, state);
+        
+        
+    }
+     if (ul == mat && ur == mat && ll != mat && lr != mat) { //p3
+        if (p == 1)
+        {
+            return define_rule(mat, 6, state);
+        }
+        return define_rule(mat, 9, state);
+        
+    }
+    if (ul != mat && ur == mat && ll != mat && lr == mat) {//p10
+        if (p == 1)
+        {
+            return define_rule(mat, 6, state);
+        }
+        return define_rule(mat, 9, state);
+        
+    }
+     if (ul == mat && ur != mat && ll == mat && lr != mat) { //p5
+        if (p == 1)
+        {
+            return define_rule(mat, 6, state);
+        }
+        return define_rule(mat, 9, state);
+        
+    }
+    if (ul == mat && ur == mat && ll == mat && lr == mat) { //p15
+        if (p == 1)
+        {
+            return define_rule(mat, 14, state);
+        }
+        return define_rule(mat, 13, state);
+        
+    }
+    if (ul == mat && ur == mat && ll == mat && lr != mat) { //p7
+        return define_rule(mat, 14, state);
+        
+    }
+    if (ul != mat && ur == mat && ll == mat && lr == mat) { //p14
+        return define_rule(mat, 7, state);
+        
+    }
+     if (ul != mat && ur == mat && ll == mat && lr != mat) { //p6
+    
+        return define_rule(mat, 9, state);
+        
+    } 
+    if (ul == mat && ur != mat && ll != mat && lr == mat) { //p9
+
+        return define_rule(mat, 6, state);
+        
+    }
+    return state;
+}
+
+std::vector<int> gas_rules(int mat, int ul, int ur, int ll, int lr) {
+    std::vector<int> state = {ul,ur,ll,lr};
+    std::srand(std::time(nullptr)); //
+    int p = 1+(rand() % 3);
+
+    if (ul == mat && ur == EMPTY && ll == EMPTY && lr == EMPTY) { //p1
+        
+        if(p == 1)
+        {
+            return define_rule(mat, 8, state);
+        }
+        return define_rule(mat, 2, state);
+        
+    }
+    if (ul == EMPTY && ur == mat && ll == EMPTY && lr == EMPTY) { //p2
+
+        if(p == 1)
+        {
+            return define_rule(mat, 4, state);
+        }
+        return define_rule(mat, 1, state);
+        
+    }
+    if (ul == EMPTY && ur == EMPTY && ll == EMPTY && lr == mat) {//p8
+
+        if(p == 1)
+        {
+            return define_rule(mat, 8, state);
+        }
+        return define_rule(mat, 2, state);
+
+    }
+    if (ul == EMPTY && ur == EMPTY && ll == mat && lr == EMPTY) {//p4
+        if(p == 1)
+        {
+            return define_rule(mat, 4, state);
+        }
+        return define_rule(mat, 1, state);
+       
+    } 
+    if (ul == EMPTY && ur == EMPTY && ll == mat && lr == mat) {//p12
+        if (p == 1)
+        {
+            return define_rule(mat, 6, state);
+        }
+        return define_rule(mat, 9, state);
+        
+        
+    }
+     if (ul == mat && ur == mat && ll == EMPTY && lr == EMPTY) { //p3
+        if (p == 1)
+        {
+            return define_rule(mat, 6, state);
+        }
+        return define_rule(mat, 9, state);
+        
+    }
+    if (ul == EMPTY && ur == mat && ll == EMPTY && lr == mat) {//p10
+        if (p == 1)
+        {
+            return define_rule(mat, 6, state);
+        }
+        return define_rule(mat, 9, state);
+        
+    }
+     if (ul == mat && ur == EMPTY && ll == mat && lr == EMPTY) { //p5
+        if (p == 1)
+        {
+            return define_rule(mat, 6, state);
+        }
+        return define_rule(mat, 9, state);
+        
+    }
+    if (ul == mat && ur == mat && ll == mat && lr == mat) { //p15
+        if (p == 1)
+        {
+            return define_rule(mat, 14, state);
+        }
+        return define_rule(mat, 13, state);
+        
+    }
+    if (ul == mat && ur == mat && ll == mat && lr == EMPTY) { //p7
+        return define_rule(mat, 14, state);
+        
+    }
+    if (ul == EMPTY && ur == mat && ll == mat && lr == mat) { //p14
+        return define_rule(mat, 7, state);
+        
+    }
+     if (ul == EMPTY && ur == mat && ll == mat && lr == EMPTY) { //p6
+    
+        return define_rule(mat, 9, state);
+        
+    } 
+    if (ul == mat && ur == EMPTY && ll == EMPTY && lr == mat) { //p9
+
+        return define_rule(mat, 6, state);
+        
+    }
+    return state;
 }
 
 std::vector<int>  water_rules(int mat, int ul, int ur, int ll, int lr){
@@ -519,20 +766,27 @@ std::vector<int>  water_rules(int mat, int ul, int ur, int ll, int lr){
     }
     if (ul == mat && ur == EMPTY && ll == EMPTY && lr == mat) //p9
     {
+
         return define_rule(mat, 12, state);    
     }
     if (ul == EMPTY && ur == mat && ll == EMPTY && lr == mat) //p10
     {
+
         return define_rule(mat, 12, state);    
     }
     if (ul == mat && ur == EMPTY && ll == mat && lr == EMPTY) //p5
     {
+        
         return define_rule(mat, 12, state);    
-    } if (ul == EMPTY && ur == EMPTY && ll == EMPTY && lr == mat) //p4
+    } 
+    if (ul == EMPTY && ur == EMPTY && ll == EMPTY && lr == mat) //p4
     {   
+        
         return define_rule(mat, 4, state);    
-    } if (ul == EMPTY && ur == EMPTY && ll == mat && lr == EMPTY) //p8
+    }
+    if (ul == EMPTY && ur == EMPTY && ll == mat && lr == EMPTY) //p8
     {
+
         return define_rule(mat, 8, state);    
     } 
 
@@ -601,6 +855,16 @@ std::vector<int> sand_rules(int mat, int ul, int ur, int ll, int lr){
     return state;
 }
 
+bool in_quad(int material, int upLeft, int upRight, int lowLeft, int lowRight)
+{
+    if (upLeft == material || upRight == material || lowLeft == material || lowRight == material)
+    {
+        return true;
+    }
+    return false;
+}
+
+//Determines the rules of each quad
 void map_think(int xshift, int yshift) {
     for (int y=(YBOUND+yshift); y < (int)((SCR_HEIGHT/POINT_SIZE)-YBOUND)+yshift; y+=2)
     {
@@ -610,20 +874,57 @@ void map_think(int xshift, int yshift) {
             int upRight = MAP[y+1][x+1];
             int lowLeft = MAP[y][x];
             int lowRight = MAP[y][x+1];
+            std::vector<int> rules;
 
-            std::vector<int> rules = sand_rules(SAND, upLeft, upRight, lowLeft, lowRight);
+            if((upLeft == EMPTY && upRight == EMPTY && lowLeft == EMPTY && lowRight == EMPTY) ||
+            (upLeft > EMPTY && upRight > EMPTY && lowLeft > EMPTY && lowRight > EMPTY))
+            {
+                continue;
+            }
 
-            upLeft = rules[0];
-            upRight = rules[1];
-            lowLeft = rules[2];
-            lowRight = rules[3];
+            if(in_quad(SAND, upLeft, upRight, lowLeft, lowRight)){
+                rules  = sand_rules(SAND, upLeft, upRight, lowLeft, lowRight);
 
-            rules = water_rules(WATER, upLeft, upRight, lowLeft, lowRight);
+                upLeft = rules[0];
+                upRight = rules[1];
+                lowLeft = rules[2];
+                lowRight = rules[3];
+            }
+
+            if(in_quad(WATER, upLeft, upRight, lowLeft, lowRight)){
+                rules = water_rules(WATER, upLeft, upRight, lowLeft, lowRight);
+
+                upLeft = rules[0];
+                upRight = rules[1];
+                lowLeft = rules[2];
+                lowRight = rules[3];
+            }
+
+            if(in_quad(GAS, upLeft, upRight, lowLeft, lowRight)){
+                rules = gas_rules(GAS, upLeft, upRight, lowLeft, lowRight);
+
+                upLeft = rules[0];
+                upRight = rules[1];
+                lowLeft = rules[2];
+                lowRight = rules[3];
+            }
+
+            if(in_quad(FIRE, upLeft, upRight, lowLeft, lowRight)){
+                rules = fire_rules(FIRE, upLeft, upRight, lowLeft, lowRight);
+                
+                upLeft = rules[0];
+                upRight = rules[1];
+                lowLeft = rules[2];
+                lowRight = rules[3];
+            }
 
             MAP[y+1][x] = rules[0];
             MAP[y+1][x+1] = rules[1];
             MAP[y][x] = rules[2];
             MAP[y][x+1] = rules[3];
+
+            
+         
             
         }
     }
@@ -763,20 +1064,36 @@ int main()
     particleMesh = make_particle_mesh(particleMesh);
 
     Particle sandParticle;
-    sandParticle.id = 2;
+    sandParticle.id = SAND;
     sandParticle.color = {0.96f, 0.7f, 0.0f, 1.0f};
 
     Particle waterParticle;
-    waterParticle.id = 3;
+    waterParticle.id = WATER;
     waterParticle.color = {0.35f, 0.7f, 1.0f, 1.0f};
 
-    Particle wallParticle;
-    wallParticle.id = 1;
-    wallParticle.color = {0.5f, 0.5f, 0.5f, 1.0f};
+    Particle woodParticle;
+    woodParticle.id = WOOD;
+    woodParticle.color = {0.60f, 0.24f, 0.06f, 1.0f};
 
-    particles.insert({"SAND", sandParticle});
+    Particle gasParticle;
+    gasParticle.id = GAS;
+    gasParticle.color = {0.0f, 0.7f, 0.4f, 1.0f};
+
+    Particle fireParticle;
+    fireParticle.id = FIRE;
+    fireParticle.color = {1.0f, 0.3f, 0.0f, 1.0f};
+
+
+
+   
+    
+    
+    particles.insert({"FIRE", fireParticle});
+    particles.insert({"WOOD", woodParticle});
+    particles.insert({"GAS", gasParticle});
     particles.insert({"WATER", waterParticle});
-    particles.insert({"WALL", wallParticle});
+    particles.insert({"SAND", sandParticle});
+    
 
     std::string selectFramePath = "../images/select_frame.png";
 
