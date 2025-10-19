@@ -1,6 +1,8 @@
 #include "config.h"
 #include "./components/particle.h"
 #include "./components/tile.h"
+#include "./components/world.h"
+#include "./factory.h"
 
 GLFWwindow* window;
 
@@ -97,8 +99,7 @@ glm::mat4 map_particle(int x, int y)
 
 }
 
-void render_particles(GLFWwindow *window, ParticleMesh mesh, std::unordered_map<std::string, Particle> particles, 
-                unsigned int shader) {
+void render_particles(GLFWwindow *window, Mesh mesh, std::unordered_map<std::string, Particle> particles) {
 
     std::vector<glm::mat4> transforms;
     std::vector<glm::vec4> colors;
@@ -150,7 +151,7 @@ void render_particles(GLFWwindow *window, ParticleMesh mesh, std::unordered_map<
 
     
     glBindVertexArray(mesh.VAO);
-    glUseProgram(shader);
+    glUseProgram(mesh.shader);
     
     glDrawArraysInstanced(GL_POINTS, 0, 1, transforms.size());
     glBindBuffer(GL_ARRAY_BUFFER, 0);
@@ -267,68 +268,6 @@ void render_gui(unsigned int VAO, unsigned int shader, Tile body, Tile edge, Til
 //END:RENDER OBJECTS
 
 //START: MAKE MESHES
-ParticleMesh make_particle_mesh(ParticleMesh particleMesh) {
-    unsigned int VBO, VAO, EBO;
-    std::vector<float> vertices = {
-        0.0f, 0.0f
-    };
-
-    glGenVertexArrays(1, &VAO);
-    glBindVertexArray(VAO);
-
-    glGenBuffers(1, &VBO);
-    glBindBuffer(GL_ARRAY_BUFFER, VBO);
-
-    glBufferData(GL_ARRAY_BUFFER, vertices.size() * sizeof(float), vertices.data(), GL_STATIC_DRAW);
-    glEnableVertexAttribArray(0);
-    glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, 2 * sizeof(float), (void*)0);
-    
-    unsigned int transformVBO, colorVBO;
-
-    //generates a VBO
-    glGenBuffers(1, &transformVBO);
-    glBindBuffer(GL_ARRAY_BUFFER, transformVBO);
-    //passes through shader
-    glBufferData(GL_ARRAY_BUFFER, sizeof(glm::mat4) * MAX_PARTICLES,  NULL, GL_STREAM_DRAW);
-    std::size_t vec4Size = sizeof(glm::vec4);
-
-    glEnableVertexAttribArray(1);
-    glVertexAttribPointer(1, 4, GL_FLOAT, GL_FALSE, sizeof(glm::mat4), (void*)(0 * vec4Size));
-    glVertexAttribDivisor(1, 1);
-
-    glEnableVertexAttribArray(2);
-    glVertexAttribPointer(2, 4, GL_FLOAT, GL_FALSE, sizeof(glm::mat4), (void*)(1 * vec4Size));
-    glVertexAttribDivisor(2, 1);
-
-    glEnableVertexAttribArray(3);
-    glVertexAttribPointer(3, 4, GL_FLOAT, GL_FALSE, sizeof(glm::mat4), (void*)(2 * vec4Size));
-    glVertexAttribDivisor(3, 1);
-
-    glEnableVertexAttribArray(4);
-    glVertexAttribPointer(4, 4, GL_FLOAT, GL_FALSE, sizeof(glm::mat4), (void*)(3 * vec4Size));
-    glVertexAttribDivisor(4, 1);
-
-    //generates a VBO
-    glGenBuffers(1, &colorVBO);
-    glBindBuffer(GL_ARRAY_BUFFER, colorVBO);
-    glBufferData(GL_ARRAY_BUFFER, sizeof(glm::vec4) * MAX_PARTICLES,  NULL, GL_STREAM_DRAW);
-    //passes through shader
-    glEnableVertexAttribArray(5);
-    glVertexAttribPointer(5, 4, GL_FLOAT, GL_FALSE, sizeof(glm::vec4), (void*)0);
-    glVertexAttribDivisor(5, 1); 
-
-    
-    glBindBuffer(GL_ARRAY_BUFFER, 0); 
-    //unbinds buffer
-    glBindVertexArray(0);     
-    
-    particleMesh.VAO = VAO;
-    particleMesh.transformVBO = transformVBO;
-    particleMesh.colorVBO = colorVBO;
-
-    return particleMesh;
-    
-}
 
 void make_tile_textures(unsigned int shader, Tile& frame, std::string selectFramePath) 
 {
@@ -514,14 +453,14 @@ std::vector<int> define_rule(int material, int permutation, std::vector<int> sta
                 {
                     rule.push_back(state[i]);
                 }   
-                continue;
-            }
-            if(state[i] == EMPTY || state[i] == material)//Passes only through empty and same material
-            {    
-                rule.push_back(ruleset[permutation][i]);
-            }else
-            {
-                rule.push_back(state[i]);
+            }else 
+            {    if(state[i] == EMPTY || state[i] == material)//Passes only through empty and same material
+                {    
+                    rule.push_back(ruleset[permutation][i]);
+                }else
+                {
+                    rule.push_back(state[i]);
+                }
             }
 
             
@@ -532,25 +471,25 @@ std::vector<int> define_rule(int material, int permutation, std::vector<int> sta
 
 std::vector<int> fire_rules(int mat, int ul, int ur, int ll, int lr) {
     std::vector<int> state = {ul,ur,ll,lr};
-    srand(time(NULL));
+
     int p = 1+(rand() % 4);
 
     if (ul == mat && ur != mat && ll != mat && lr != mat) { //p1
         
         if(p == 1)
         {
-            return define_rule(mat, 8, state);
+            return define_rule(mat, 2, state);
         }
-        return define_rule(mat, 2, state);
+        return define_rule(mat, 8, state);
         
     }
     if (ul != mat && ur == mat && ll != mat && lr != mat) { //p2
 
         if(p == 1)
         {
-            return define_rule(mat, 4, state);
+            return define_rule(mat, 1, state);
         }
-        return define_rule(mat, 1, state);
+        return define_rule(mat, 4, state);
         
     }
     if (ul != mat && ur != mat && ll != mat && lr == mat) {//p8
@@ -634,25 +573,25 @@ std::vector<int> fire_rules(int mat, int ul, int ur, int ll, int lr) {
 
 std::vector<int> gas_rules(int mat, int ul, int ur, int ll, int lr) {
     std::vector<int> state = {ul,ur,ll,lr};
-    std::srand(std::time(nullptr)); //
+
     int p = 1+(rand() % 3);
 
     if (ul == mat && ur == EMPTY && ll == EMPTY && lr == EMPTY) { //p1
         
         if(p == 1)
         {
-            return define_rule(mat, 8, state);
+            return define_rule(mat, 2, state);
         }
-        return define_rule(mat, 2, state);
+        return define_rule(mat, 8, state);
         
     }
     if (ul == EMPTY && ur == mat && ll == EMPTY && lr == EMPTY) { //p2
 
         if(p == 1)
         {
-            return define_rule(mat, 4, state);
+            return define_rule(mat, 1, state);
         }
-        return define_rule(mat, 1, state);
+        return define_rule(mat, 4, state);
         
     }
     if (ul == EMPTY && ur == EMPTY && ll == EMPTY && lr == mat) {//p8
@@ -736,8 +675,7 @@ std::vector<int> gas_rules(int mat, int ul, int ur, int ll, int lr) {
 
 std::vector<int>  water_rules(int mat, int ul, int ur, int ll, int lr){
     std::vector<int> state = {ul,ur,ll,lr};
-    srand(time(NULL));
-    int p = 1+(rand() % 2);
+
 
     //Mat can only move through empty
     if (ul == mat && ur == EMPTY && ll == EMPTY && lr == EMPTY)//p1
@@ -796,8 +734,6 @@ std::vector<int>  water_rules(int mat, int ul, int ur, int ll, int lr){
 
 std::vector<int> sand_rules(int mat, int ul, int ur, int ll, int lr){
     std::vector<int> state = {ul,ur,ll,lr};
-    srand(time(NULL));
-    int p = 1+(rand() % 4);
 
     //Mat can only move through empty
     if (ul == mat && ur == EMPTY && ll == EMPTY && lr == EMPTY)//p1
@@ -830,25 +766,12 @@ std::vector<int> sand_rules(int mat, int ul, int ur, int ll, int lr){
     }
     if (ul == EMPTY && ur == mat && ll == EMPTY && lr == mat) //p10
     {
-        // if (p == 1)
-        // {
-        //     return define_rule(mat, 12, state);
-        // }else
-        // {
-        //     return define_rule(mat, 10, state);    
-        // }
+
         return define_rule(mat, 12, state);
     }
     if (ul == mat && ur == EMPTY && ll == mat && lr == EMPTY) //p5
     {
-        // if (p == 1)
-        // {
-        //     return define_rule(mat, 12, state);
-        // }else
-        // {
-        //     return define_rule(mat, 10, state);    
-        // }
-        
+  
         return define_rule(mat, 12, state);
         
     }
@@ -866,6 +789,7 @@ bool in_quad(int material, int upLeft, int upRight, int lowLeft, int lowRight)
 
 //Determines the rules of each quad
 void map_think(int xshift, int yshift) {
+    srand(time(NULL));
     for (int y=(YBOUND+yshift); y < (int)((SCR_HEIGHT/POINT_SIZE)-YBOUND)+yshift; y+=2)
     {
        for (int x=(XBOUND+xshift); x < (int)((SCR_WIDTH/POINT_SIZE)-XBOUND)+xshift; x+=2)
@@ -877,10 +801,13 @@ void map_think(int xshift, int yshift) {
             std::vector<int> rules;
 
             if((upLeft == EMPTY && upRight == EMPTY && lowLeft == EMPTY && lowRight == EMPTY) ||
-            (upLeft > EMPTY && upRight > EMPTY && lowLeft > EMPTY && lowRight > EMPTY))
+            (upLeft > EMPTY && upRight > EMPTY && lowLeft > EMPTY && lowRight > EMPTY) ||
+            (upLeft == WOOD || upRight == WOOD || lowLeft == WOOD || lowRight == WOOD) )
             {
                 continue;
             }
+
+
 
             if(in_quad(SAND, upLeft, upRight, lowLeft, lowRight)){
                 rules  = sand_rules(SAND, upLeft, upRight, lowLeft, lowRight);
@@ -1045,23 +972,19 @@ void framebuffer_size_callback(GLFWwindow* window, int width, int height)
     glViewport(0, 0, width, height);
 }
 
-int main()
-{
+int main(){
     setup_glfw();
-    std::unordered_map<std::string, Particle> particles;
 
-    unsigned int particleShader, tileShader;
-    particleShader = make_shader(
-        "../src/view/particle_shader.vert",
-        "../src/view/particle_shader.frag"
-    );
-    tileShader = make_shader(
-        "../src/view/tile_shader.vert",
-        "../src/view/tile_shader.frag"
-    );
-    
-    ParticleMesh particleMesh;
-    particleMesh = make_particle_mesh(particleMesh);
+    World world;
+    Mesh particleInstance;
+    Mesh tileInstance;
+    world.MAX_PARTICLES = ((SCR_WIDTH/ POINT_SIZE) * (SCR_HEIGHT/ POINT_SIZE));
+
+    std::unordered_map<std::string, Particle> particles;
+    Factory* factory = new Factory(world, particleInstance, tileInstance);
+    //std::cout << particleInstance.transformVBO << std::endl;
+    factory->make_particles();
+    factory->make_tiles();
 
     Particle sandParticle;
     sandParticle.id = SAND;
@@ -1086,8 +1009,6 @@ int main()
 
 
    
-    
-    
     particles.insert({"FIRE", fireParticle});
     particles.insert({"WOOD", woodParticle});
     particles.insert({"GAS", gasParticle});
@@ -1103,19 +1024,19 @@ int main()
     particleButton.imagePath = "../images/wood_frame.png";
     particleButton.dimension = (int)TILE_SIZE;
     particleButton.color = {0.7f, 0.6f, 0.0f};
-    make_tile_textures(tileShader, particleButton, selectFramePath);
+    make_tile_textures(tileInstance.shader, particleButton, selectFramePath);
 
     Tile logEdge;
     logEdge.imagePath = "../images/wood_edge.png";
     logEdge.dimension = (int)TILE_SIZE;
     logEdge.color = {0.0f, 0.0f, 0.0f};
-    make_tile_textures(tileShader, logEdge, selectFramePath);
+    make_tile_textures(tileInstance.shader, logEdge, selectFramePath);
 
     Tile logBody;
     logBody.imagePath = "../images/wood_body.png";
     logBody.dimension = (int)TILE_SIZE;
     logEdge.color = {0.0f, 0.0f, 0.0f};
-    make_tile_textures(tileShader, logBody, selectFramePath);
+    make_tile_textures(tileInstance.shader, logBody, selectFramePath);
 
 
 
@@ -1144,9 +1065,9 @@ int main()
         map_think(itrThink[itr_i][0], itrThink[itr_i][1]);
 
         //draw_tiles();
-        render_particles(window, particleMesh, particles, particleShader);
+        render_particles(window, particleInstance, particles);
 
-        render_gui(tileVAO, tileShader,logBody, logEdge, particleButton, particles);
+        render_gui(tileInstance.VAO, tileInstance.shader,logBody, logEdge, particleButton, particles);
         
         if (itr_i < 3){    
             itr_i += 1;
@@ -1164,7 +1085,7 @@ int main()
     // glDeleteBuffers(1, &VBO);
     // glDeleteBuffers(1, &EBO);
     // glDeleteProgram(shader);
-
+    delete factory;
     glfwTerminate();
     return 0;
 

@@ -1,6 +1,7 @@
 #pragma once 
 #include "../config.h"
 
+
 struct Tile {
     unsigned int mainTexture;
     unsigned int selectTexture;

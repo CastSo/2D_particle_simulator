@@ -15,8 +15,10 @@ add_executable(sand
     src/config.h
     src/config.cpp
     src/main.cpp
+    src/factory.cpp
     src/glad.c
     src/shader.cpp
+    
 
 )
 
