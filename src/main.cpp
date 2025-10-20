@@ -1,6 +1,7 @@
 #include "config.h"
 #include "./components/particle.h"
 #include "./components/tile.h"
+#include "./components/mesh.h"
 #include "./components/world.h"
 #include "./factory.h"
 
@@ -179,7 +180,7 @@ void render_gui(unsigned int VAO, unsigned int shader, Tile body, Tile edge, Til
     transform = glm::translate(transform, glm::vec3(xN, yN, 1.0f));
     transform = glm::scale(transform, glm::vec3(tileWidth, tileHeight, 1.0f));
     glActiveTexture(GL_TEXTURE0);
-    glBindTexture(GL_TEXTURE_2D, edge.mainTexture);
+    glBindTexture(GL_TEXTURE_2D, edge.mainTextureBufr);
 
     glUniform1i(frame.isSelected, false);
     glActiveTexture(GL_TEXTURE1);
@@ -208,13 +209,13 @@ void render_gui(unsigned int VAO, unsigned int shader, Tile body, Tile edge, Til
             // glBindVertexArray(frame.VAO);
 
             glActiveTexture(GL_TEXTURE0);
-            glBindTexture(GL_TEXTURE_2D, frame.mainTexture);
+            glBindTexture(GL_TEXTURE_2D, frame.mainTextureBufr);
 
             if(detect_mouse(xm, ym) == GUI_LAYOUT[x])
             {
                 glUniform1i(frame.isSelected, true);
                 glActiveTexture(GL_TEXTURE1);
-                glBindTexture(GL_TEXTURE_2D, frame.selectTexture);
+                glBindTexture(GL_TEXTURE_2D, frame.selectTextureBufr);
             }else {
                 glUniform1i(frame.isSelected, false);
                 glActiveTexture(GL_TEXTURE1);
@@ -240,7 +241,7 @@ void render_gui(unsigned int VAO, unsigned int shader, Tile body, Tile edge, Til
         else {
             // glBindVertexArray(body.VAO);
             glActiveTexture(GL_TEXTURE0);
-            glBindTexture(GL_TEXTURE_2D, body.mainTexture);
+            glBindTexture(GL_TEXTURE_2D, body.mainTextureBufr);
 
             glm::mat4 transform = glm::mat4(1.0f);
             transform = glm::translate(transform, glm::vec3(xN, yN, 1.0f));
@@ -265,119 +266,8 @@ void render_gui(unsigned int VAO, unsigned int shader, Tile body, Tile edge, Til
 }
 
 
-//END:RENDER OBJECTS
-
-//START: MAKE MESHES
-
-void make_tile_textures(unsigned int shader, Tile& frame, std::string selectFramePath) 
-{
-    unsigned int mainTexture, selectTexture;
-
-    glGenTextures(1, &mainTexture);
-    glBindTexture(GL_TEXTURE_2D, mainTexture); 
-     // set the texture wrapping parameters
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
-    // set texture filtering parameters
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-
-    // load image, create texture and generate mipmaps
-    int width, height, nrChannels;
-    stbi_set_flip_vertically_on_load(true); // tell stb_image.h to flip loaded texture's on the y-axis.
-
-    unsigned char *data = stbi_load(frame.imagePath.c_str(), &width, &height, &nrChannels, 0);
-    if (data)
-    {
-        glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, width, height, 0, GL_RGBA, GL_UNSIGNED_BYTE, data);
-        glGenerateMipmap(GL_TEXTURE_2D);
-    }
-    else
-    {
-        std::cout << "Failed to load texture" << std::endl;
-    }
-    stbi_image_free(data);
-
-    glGenTextures(1, &selectTexture);
-    glBindTexture(GL_TEXTURE_2D, selectTexture); 
-     // set the texture wrapping parameters
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);	// set texture wrapping to GL_REPEAT (default wrapping method)
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
-    // set texture filtering parameters
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-
-    stbi_set_flip_vertically_on_load(true); // tell stb_image.h to flip loaded texture's on the y-axis.
-
-    data = stbi_load(selectFramePath.c_str(), &width, &height, &nrChannels, 0);
-    if (data)
-    {
-        glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, width, height, 0, GL_RGBA, GL_UNSIGNED_BYTE, data);
-        glGenerateMipmap(GL_TEXTURE_2D);
-    }
-    else
-    {
-        std::cout << "Failed to load texture" << std::endl;
-    }
-    stbi_image_free(data);
-
-    glUseProgram(shader);
-    unsigned int mainTexLoc = glGetUniformLocation(shader, "mainTexture");
-    glUniform1i(mainTexLoc, 0);
-    unsigned int selectTexLoc = glGetUniformLocation(shader, "selectTexture");
-    glUniform1i(selectTexLoc, 1);
-    
-
-    unsigned int isSelectLoc = glGetUniformLocation(shader, "isSelected");
-    glUniform1i(isSelectLoc, false);
-    
-
-    frame.mainTexture = mainTexture;
-    frame.selectTexture = selectTexture;
-    frame.isSelected = isSelectLoc;
-}
-
-unsigned int make_tile_mesh() {
-    std::vector<float> vertices = {
-         1.0f,  1.0f,  0.0f,   1.0f,  1.0f,  
-         1.0f, -1.0f,  0.0f,   1.0f,  0.0f,
-        -1.0f, -1.0f,  0.0f,   0.0f,  0.0f,
-        -1.0f,  1.0f,  0.0f,   0.0f,  1.0f
-    };
-
-    std::vector<unsigned int> indices = {
-        3, 1, 2,
-        3, 0, 1
-    };
-
-    unsigned int VAO, VBO, EBO;
-
-    glGenVertexArrays(1, &VAO);
-    glGenBuffers(1, &VBO);
-    glGenBuffers(1, &EBO);
 
 
-    glBindVertexArray(VAO);
-
-    glBindBuffer(GL_ARRAY_BUFFER, VBO);
-    glBufferData(GL_ARRAY_BUFFER, vertices.size() * sizeof(float), vertices.data(), GL_STATIC_DRAW);
-
-    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, EBO);
-    glBufferData(GL_ELEMENT_ARRAY_BUFFER, indices.size() * sizeof(unsigned int), indices.data(), GL_STATIC_DRAW);
-
-    //position attribute
-    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 5 * sizeof(float), (void*)0);
-    glEnableVertexAttribArray(0);
-
-    //texture attribute
-    glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, 5 * sizeof(float), (void*)(3 * sizeof(float))); 
-    glEnableVertexAttribArray(1);
-    
-        
-
-    return VAO;
-}
-//END: MAKE MESHES
 
 void add_particles(GLFWwindow *window, int id) {
     
@@ -975,16 +865,10 @@ void framebuffer_size_callback(GLFWwindow* window, int width, int height)
 int main(){
     setup_glfw();
 
-    World world;
-    Mesh particleInstance;
-    Mesh tileInstance;
-    world.MAX_PARTICLES = ((SCR_WIDTH/ POINT_SIZE) * (SCR_HEIGHT/ POINT_SIZE));
 
+    std::unordered_map<std::string, Tile> tiles;
     std::unordered_map<std::string, Particle> particles;
-    Factory* factory = new Factory(world, particleInstance, tileInstance);
-    //std::cout << particleInstance.transformVBO << std::endl;
-    factory->make_particles();
-    factory->make_tiles();
+    
 
     Particle sandParticle;
     sandParticle.id = SAND;
@@ -1018,27 +902,43 @@ int main(){
 
     std::string selectFramePath = "../images/select_frame.png";
 
-    unsigned int tileVAO = make_tile_mesh();
-
+    
     Tile particleButton;
-    particleButton.imagePath = "../images/wood_frame.png";
+    particleButton.imgMainPath = "../images/wood_frame.png";
     particleButton.dimension = (int)TILE_SIZE;
     particleButton.color = {0.7f, 0.6f, 0.0f};
-    make_tile_textures(tileInstance.shader, particleButton, selectFramePath);
+    particleButton.imgSelectPath = selectFramePath;
 
+
+    
     Tile logEdge;
-    logEdge.imagePath = "../images/wood_edge.png";
+    logEdge.imgMainPath  = "../images/wood_edge.png";
     logEdge.dimension = (int)TILE_SIZE;
     logEdge.color = {0.0f, 0.0f, 0.0f};
-    make_tile_textures(tileInstance.shader, logEdge, selectFramePath);
+    logEdge.imgSelectPath = selectFramePath;
+
 
     Tile logBody;
-    logBody.imagePath = "../images/wood_body.png";
+    logBody.imgMainPath  = "../images/wood_body.png";
     logBody.dimension = (int)TILE_SIZE;
     logEdge.color = {0.0f, 0.0f, 0.0f};
-    make_tile_textures(tileInstance.shader, logBody, selectFramePath);
+    logEdge.imgSelectPath = selectFramePath;
 
 
+
+    tiles.insert({"BUTTON", particleButton});
+    tiles.insert({"LOG_EDGE", logEdge});
+    tiles.insert({"LOG_BODY", logBody});
+
+    World world;
+    Mesh particleInstance;
+    Mesh tileInstance;
+    world.MAX_PARTICLES = ((SCR_WIDTH/ POINT_SIZE) * (SCR_HEIGHT/ POINT_SIZE));
+    Factory* factory = new Factory(world, particleInstance, tileInstance, tiles);
+
+    //Sets up shaders and VAO of particles and tiles
+    factory->make_particles();
+    factory->make_tiles();
 
     setup_map();
     setup_gui(particles);
@@ -1067,7 +967,7 @@ int main(){
         //draw_tiles();
         render_particles(window, particleInstance, particles);
 
-        render_gui(tileInstance.VAO, tileInstance.shader,logBody, logEdge, particleButton, particles);
+        render_gui(tileInstance.VAO, tileInstance.shader, tiles.at("LOG_BODY"), tiles.at("LOG_EDGE"), tiles.at("BUTTON"), particles);
         
         if (itr_i < 3){    
             itr_i += 1;

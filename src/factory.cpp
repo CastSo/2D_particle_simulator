@@ -2,9 +2,10 @@
 
 
 
-Factory::Factory(World world, Mesh& particleInstance, Mesh& tileInstance): 
+Factory::Factory(World world, Mesh& particleInstance, Mesh& tileInstance, std::unordered_map<std::string, Tile>& tiles): 
     particleInstance(particleInstance),
-    tileInstance(tileInstance){
+    tileInstance(tileInstance),
+    tiles(tiles){
         maxParticles = world.MAX_PARTICLES;
     }
 
@@ -38,6 +39,12 @@ void Factory::make_tiles(){
 
     tileInstance.shader = tileShader;
     tileInstance.VAO = make_tile_instance();
+
+    for(auto& tile : tiles)
+    {
+        
+        make_tile_textures(tileShader, tile.second, "../images/select_frame.png");
+    }
     
 }
 
@@ -111,77 +118,6 @@ unsigned int Factory::make_particle_color_buffer() {
     return colorVBO;
 }
 
-
-
-// void make_tile_textures(unsigned int shader, Tile& tile) 
-// {
-//     unsigned int mainTexture, selectTexture;
-
-//     glGenTextures(1, &mainTexture);
-//     glBindTexture(GL_TEXTURE_2D, mainTexture); 
-//      // set the texture wrapping parameters
-//     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
-//     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
-//     // set texture filtering parameters
-//     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-//     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-
-//     // load image, create texture and generate mipmaps
-//     int width, height, nrChannels;
-//     stbi_set_flip_vertically_on_load(true); // tell stb_image.h to flip loaded texture's on the y-axis.
-
-//     unsigned char *data = stbi_load(tile.imagePath.c_str(), &width, &height, &nrChannels, 0);
-//     if (data)
-//     {
-//         glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, width, height, 0, GL_RGBA, GL_UNSIGNED_BYTE, data);
-//         glGenerateMipmap(GL_TEXTURE_2D);
-//     }
-//     else
-//     {
-//         std::cout << "Failed to load texture" << std::endl;
-//     }
-//     stbi_image_free(data);
-
-//     glGenTextures(1, &selectTexture);
-//     glBindTexture(GL_TEXTURE_2D, selectTexture); 
-//      // set the texture wrapping parameters
-//     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);	// set texture wrapping to GL_REPEAT (default wrapping method)
-//     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
-//     // set texture filtering parameters
-//     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-//     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-
-//     stbi_set_flip_vertically_on_load(true); // tell stb_image.h to flip loaded texture's on the y-axis.
-
-//     data = stbi_load(tile.selectTexture.c_str(), &width, &height, &nrChannels, 0);
-//     if (data)
-//     {
-//         glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, width, height, 0, GL_RGBA, GL_UNSIGNED_BYTE, data);
-//         glGenerateMipmap(GL_TEXTURE_2D);
-//     }
-//     else
-//     {
-//         std::cout << "Failed to load texture" << std::endl;
-//     }
-//     stbi_image_free(data);
-
-//     glUseProgram(shader);
-//     unsigned int mainTexLoc = glGetUniformLocation(shader, "mainTexture");
-//     glUniform1i(mainTexLoc, 0);
-//     unsigned int selectTexLoc = glGetUniformLocation(shader, "selectTexture");
-//     glUniform1i(selectTexLoc, 1);
-    
-
-//     unsigned int isSelectLoc = glGetUniformLocation(shader, "isSelected");
-//     glUniform1i(isSelectLoc, false);
-    
-
-//     tile.mainTexture = mainTexture;
-//     tile.selectTexture = selectTexture;
-//     tile.isSelected = isSelectLoc;
-// }
-
-
 unsigned int Factory::make_tile_instance() {
     std::vector<float> vertices = {
          1.0f,  1.0f,  0.0f,   1.0f,  1.0f,  
@@ -222,4 +158,75 @@ unsigned int Factory::make_tile_instance() {
 
     return VAO;
 }
+
+void Factory::make_tile_textures(unsigned int shader, Tile& tile, std::string imgSelectPath) 
+{
+    unsigned int mainTexture, selectTexture;
+
+    glGenTextures(1, &mainTexture);
+    glBindTexture(GL_TEXTURE_2D, mainTexture); 
+     // set the texture wrapping parameters
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
+    // set texture filtering parameters
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+
+    // load image, create texture and generate mipmaps
+    int width, height, nrChannels;
+    stbi_set_flip_vertically_on_load(true); // tell stb_image.h to flip loaded texture's on the y-axis.
+
+    unsigned char *data = stbi_load(tile.imgMainPath.c_str(), &width, &height, &nrChannels, 0);
+    if (data)
+    {
+        glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, width, height, 0, GL_RGBA, GL_UNSIGNED_BYTE, data);
+        glGenerateMipmap(GL_TEXTURE_2D);
+    }
+    else
+    {
+        std::cout << "Failed to load texture:  " << stbi_failure_reason() << std::endl;
+    }
+    stbi_image_free(data);
+
+    glGenTextures(1, &selectTexture);
+    glBindTexture(GL_TEXTURE_2D, selectTexture); 
+     // set the texture wrapping parameters
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);	// set texture wrapping to GL_REPEAT (default wrapping method)
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
+    // set texture filtering parameters
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+
+    stbi_set_flip_vertically_on_load(true); // tell stb_image.h to flip loaded texture's on the y-axis.
+
+    data = stbi_load(imgSelectPath.c_str(), &width, &height, &nrChannels, 0);
+    if (data)
+    {
+        glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, width, height, 0, GL_RGBA, GL_UNSIGNED_BYTE, data);
+        glGenerateMipmap(GL_TEXTURE_2D);
+    }
+    else
+    {
+        std::cout << "Failed to load texture: " << stbi_failure_reason() << std::endl;
+    }
+    stbi_image_free(data);
+
+    glUseProgram(shader);
+    unsigned int mainTexLoc = glGetUniformLocation(shader, "mainTexture");
+    glUniform1i(mainTexLoc, 0);
+    unsigned int selectTexLoc = glGetUniformLocation(shader, "selectTexture");
+    glUniform1i(selectTexLoc, 1);
+    
+
+    unsigned int isSelectLoc = glGetUniformLocation(shader, "isSelected");
+    glUniform1i(isSelectLoc, false);
+    
+
+    tile.mainTextureBufr = mainTexture;
+    tile.selectTextureBufr = selectTexture;
+    tile.isSelected = isSelectLoc;
+}
+
+
+
 //END: MAKE MESHES

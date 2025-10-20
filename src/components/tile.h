@@ -3,11 +3,11 @@
 
 
 struct Tile {
-    unsigned int mainTexture;
-    unsigned int selectTexture;
+    unsigned int mainTextureBufr;
+    unsigned int selectTextureBufr;
     unsigned int isSelected;
     unsigned int dimension;
     glm::vec3 color;
-    std::string imagePath;
-     
+    std::string imgMainPath;
+    std::string imgSelectPath;
 };
