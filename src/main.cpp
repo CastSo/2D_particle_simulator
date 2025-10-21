@@ -125,8 +125,14 @@ void render_particles(GLFWwindow *window, Mesh mesh, std::unordered_map<std::str
                 transforms.push_back(map_particle(x, y));
                 colors.push_back(particles.at("GAS").color);
             } else if (MAP[y][x] == FIRE) {
+                int p = 1+(rand() % 2);
                 transforms.push_back(map_particle(x, y));
-                colors.push_back(particles.at("FIRE").color);
+                if(p == 1)
+                {
+                    colors.push_back(particles.at("FIRE").secondColor);
+                }else {
+                    colors.push_back(particles.at("FIRE").color);
+                }
             }
     }
 }
@@ -283,38 +289,40 @@ void add_particles(GLFWwindow *window, int id) {
     int r = 2;
     
     if (id == WOOD)
-    {    
-    
-        r = 8;
-        
+    {   
+        r = 6;
     }
 
-    int t1 = r / 16;
-    int t2 = 0;
-    int x = r;
-    int y = 0;
 
-    if(!((xN-x) < XBOUND || (xN+x) > ((int)SCR_WIDTH/POINT_SIZE)-XBOUND ||
-            (yN-y) < YBOUND || (yN+y) > ((int)SCR_HEIGHT/POINT_SIZE)-YBOUND))
+    if(!((xN-r) < XBOUND || (xN+r) > ((int)SCR_WIDTH/POINT_SIZE)-XBOUND ||
+            (yN-r) < YBOUND || (yN+r) > ((int)SCR_HEIGHT/POINT_SIZE)-YBOUND))
             {
-                while (x >= y)
+                for(int i = 1; i < r; i++)
                 {
-                    MAP[yN+x][xN+y] = id;
-                    MAP[yN-x][xN+y] = id;
-                    MAP[yN+x][xN-y] = id;
-                    MAP[yN-x][xN-y] = id;
-                    MAP[yN+y][xN+x] = id;
-                    MAP[yN+y][xN-x] = id;
-                    MAP[yN-y][xN+x] = id;
-                    MAP[yN-y][xN-x] = id;
-                    
-                    y = y + 1;
-                    t1 = t1 + y;
-                    t2 = t1 - x;
-                    if(t2 >= 0)
+                                    
+                    int t1 = i / 12;
+                    int t2 = 0;
+                    int x = i;
+                    int y = 0;   
+                    while (x >= y)
                     {
-                        t1 = t2;
-                        x = x-1;
+                        MAP[yN+x][xN+y] = id;
+                        MAP[yN-x][xN+y] = id;
+                        MAP[yN+x][xN-y] = id;
+                        MAP[yN-x][xN-y] = id;
+                        MAP[yN+y][xN+x] = id;
+                        MAP[yN+y][xN-x] = id;
+                        MAP[yN-y][xN+x] = id;
+                        MAP[yN-y][xN-x] = id;
+                        
+                        y = y + 1;
+                        t1 = t1 + y;
+                        t2 = t1 - x;
+                        if(t2 >= 0)
+                        {
+                            t1 = t2;
+                            x = x-1;
+                        }
                     }
                 }
         }
@@ -670,16 +678,18 @@ std::vector<int> sand_rules(int mat, int ul, int ur, int ll, int lr){
 
 bool in_quad(int material, int upLeft, int upRight, int lowLeft, int lowRight)
 {
+    bool inQuad = false;
     if (upLeft == material || upRight == material || lowLeft == material || lowRight == material)
     {
-        return true;
+        inQuad = true;
     }
-    return false;
+    return inQuad;
 }
 
 //Determines the rules of each quad
+std::vector<int> rules;
 void map_think(int xshift, int yshift) {
-    srand(time(NULL));
+    
     for (int y=(YBOUND+yshift); y < (int)((SCR_HEIGHT/POINT_SIZE)-YBOUND)+yshift; y+=2)
     {
        for (int x=(XBOUND+xshift); x < (int)((SCR_WIDTH/POINT_SIZE)-XBOUND)+xshift; x+=2)
@@ -688,16 +698,29 @@ void map_think(int xshift, int yshift) {
             int upRight = MAP[y+1][x+1];
             int lowLeft = MAP[y][x];
             int lowRight = MAP[y][x+1];
-            std::vector<int> rules;
+
+            int state[4]; 
 
             if((upLeft == EMPTY && upRight == EMPTY && lowLeft == EMPTY && lowRight == EMPTY) ||
-            (upLeft > EMPTY && upRight > EMPTY && lowLeft > EMPTY && lowRight > EMPTY) ||
-            (upLeft == WOOD || upRight == WOOD || lowLeft == WOOD || lowRight == WOOD) )
+            (upLeft > EMPTY && upRight > EMPTY && lowLeft > EMPTY && lowRight > EMPTY) )
             {
+            
                 continue;
             }
 
-
+            if(in_quad(WOOD, upLeft, upRight, lowLeft, lowRight))
+            {
+                 if(in_quad(FIRE, upLeft, upRight, lowLeft, lowRight)){
+                    rules = fire_rules(FIRE, upLeft, upRight, lowLeft, lowRight);
+                    
+                    upLeft = rules[0];
+                    upRight = rules[1];
+                    lowLeft = rules[2];
+                    lowRight = rules[3];
+                }else{
+                    continue;
+                }
+            }
 
             if(in_quad(SAND, upLeft, upRight, lowLeft, lowRight)){
                 rules  = sand_rules(SAND, upLeft, upRight, lowLeft, lowRight);
@@ -755,7 +778,7 @@ void setup_glfw() {
     glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 3);
     glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 3);
     glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
-    //glfwWindowHint(GLFW_RESIZABLE, GLFW_FALSE);
+    glfwWindowHint(GLFW_RESIZABLE, GLFW_FALSE);
 
     #ifdef __APPLE__
         glfwWindowHint(GLFW_OPENGL_FORWARD_COMPAT, GL_TRUE);
@@ -771,6 +794,7 @@ void setup_glfw() {
     }
     glfwMakeContextCurrent(window);
     glfwSetFramebufferSizeCallback(window, framebuffer_size_callback);
+    
 
      // tell GLFW to capture our mouse
     glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_NORMAL);
@@ -818,8 +842,12 @@ int detect_mouse(int xN, int yN) {
 
 void processInput(GLFWwindow *window)
 {
-    if (glfwGetKey(window, GLFW_KEY_ESCAPE) == GLFW_PRESS)
+    if (glfwGetKey(window, GLFW_KEY_ESCAPE) == GLFW_PRESS){   
         glfwSetWindowShouldClose(window, true);
+   }if (glfwGetKey(window, GLFW_KEY_Q) == GLFW_PRESS)
+    {
+        setup_map();
+    }
     
 }
 
@@ -863,6 +891,7 @@ void framebuffer_size_callback(GLFWwindow* window, int width, int height)
 }
 
 int main(){
+    srand(time(NULL));
     setup_glfw();
 
 
@@ -889,6 +918,7 @@ int main(){
     Particle fireParticle;
     fireParticle.id = FIRE;
     fireParticle.color = {1.0f, 0.3f, 0.0f, 1.0f};
+    fireParticle.secondColor = {0.85f, 0.78f, 0.0f, 1.0f};
 
 
 
