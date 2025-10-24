@@ -1,9 +1,6 @@
 #pragma once
 #include "config.h"
-#include "./components/particle.h"
-#include "./components/tile.h"
-#include "./components/mesh.h"
-#include "./components/world.h"
+#include "./components/components.h"
 #include "./shader.h"
 
 class Factory {
@@ -20,7 +17,7 @@ class Factory {
         Mesh& tileInstance;
         std::unordered_map<std::string, Tile>& tiles;
         unsigned int maxParticles; 
-        unsigned int make_particle_instance();
+        Mesh make_particle_instance();
         unsigned int make_particle_transform_buffer(); 
         unsigned int make_particle_color_buffer();
 

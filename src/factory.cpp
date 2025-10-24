@@ -2,7 +2,7 @@
 
 
 
-Factory::Factory(World world, Mesh& particleInstance, Mesh& tileInstance, std::unordered_map<std::string, Tile>& tiles): 
+Factory::Factory(World world, Mesh& particleInstance,  Mesh& tileInstance, std::unordered_map<std::string, Tile>& tiles): 
     particleInstance(particleInstance),
     tileInstance(tileInstance),
     tiles(tiles){
@@ -16,6 +16,7 @@ Factory::~Factory() {
 
 void Factory::make_particles()
 {
+    particleInstance = make_particle_instance();
     unsigned int particleShader;
     particleShader = make_shader(
         "../src/view/particle_shader.vert",
@@ -23,7 +24,6 @@ void Factory::make_particles()
     );
 
     particleInstance.shader = particleShader;
-    particleInstance.VAO = make_particle_instance();
     particleInstance.transformVBO = make_particle_transform_buffer();
     particleInstance.colorVBO = make_particle_color_buffer();
 
@@ -49,7 +49,7 @@ void Factory::make_tiles(){
 }
 
 //START: MAKE MESHES
-unsigned int Factory::make_particle_instance() {
+Mesh Factory::make_particle_instance() {
     unsigned int VBO, VAO, EBO;
     std::vector<float> vertices = {
         0.0f, 0.0f
@@ -65,7 +65,12 @@ unsigned int Factory::make_particle_instance() {
     glEnableVertexAttribArray(0);
     glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, 2 * sizeof(float), (void*)0);
     
-    return VAO;
+    Mesh mesh;
+    mesh.VAO = VAO;
+    mesh.VBO = VBO;
+    mesh.EBO = EBO;
+
+    return mesh;
 
 }
 

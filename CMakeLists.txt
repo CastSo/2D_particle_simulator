@@ -16,6 +16,7 @@ add_executable(sand
     src/config.cpp
     src/main.cpp
     src/factory.cpp
+    src/think.cpp
     src/glad.c
     src/shader.cpp
     

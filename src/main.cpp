@@ -1,9 +1,6 @@
 #include "config.h"
-#include "./components/particle.h"
-#include "./components/tile.h"
-#include "./components/mesh.h"
-#include "./components/world.h"
 #include "./factory.h"
+#include "./think.h"
 
 GLFWwindow* window;
 
@@ -27,17 +24,10 @@ int SAND = 2;
 int WATER = 3;
 int GAS = 4;
 int FIRE = 5;
-int MAP[(int)(SCR_HEIGHT/POINT_SIZE)][(int)(SCR_WIDTH/POINT_SIZE)];
+//int MAP[(int)(SCR_HEIGHT/POINT_SIZE)][(int)(SCR_WIDTH/POINT_SIZE)];
+std::vector<std::vector<int>> MAP;
 int GUI_LAYOUT[(int)(SCR_WIDTH/TILE_SIZE)];
 int ACTIVE_PARTICLE;
-
-
-struct ParticleMesh {
-
-    unsigned int VAO;
-    unsigned int transformVBO;
-    unsigned int colorVBO;
-};
 
 bool mouseDown;
 
@@ -47,12 +37,13 @@ bool mouseDown;
 void setup_map() {
     for (int y = 0; y <  ((int)(SCR_HEIGHT/POINT_SIZE)); y++)
     {
+        MAP.push_back({});
 
         for (int x = 0; x < ((int)(SCR_WIDTH/POINT_SIZE)); x++)
         {
 
  
-            MAP[y][x] = EMPTY;
+            MAP[y].push_back(EMPTY);
 
         }
 
@@ -367,409 +358,8 @@ std::vector<int> define_rule(int material, int permutation, std::vector<int> sta
 }
 
 
-std::vector<int> fire_rules(int mat, int ul, int ur, int ll, int lr) {
-    std::vector<int> state = {ul,ur,ll,lr};
-
-    int p = 1+(rand() % 4);
-
-    if (ul == mat && ur != mat && ll != mat && lr != mat) { //p1
-        
-        if(p == 1)
-        {
-            return define_rule(mat, 2, state);
-        }
-        return define_rule(mat, 8, state);
-        
-    }
-    if (ul != mat && ur == mat && ll != mat && lr != mat) { //p2
-
-        if(p == 1)
-        {
-            return define_rule(mat, 1, state);
-        }
-        return define_rule(mat, 4, state);
-        
-    }
-    if (ul != mat && ur != mat && ll != mat && lr == mat) {//p8
-
-        if(p == 1)
-        {
-            return define_rule(mat, 8, state);
-        }
-        return define_rule(mat, 2, state);
-
-    }
-    if (ul != mat && ur != mat && ll == mat && lr != mat) {//p4
-        if(p == 1)
-        {
-            return define_rule(mat, 4, state);
-        }
-        return define_rule(mat, 1, state);
-       
-    } 
-    if (ul != mat && ur != mat && ll == mat && lr == mat) {//p12
-        if (p == 1)
-        {
-            return define_rule(mat, 6, state);
-        }
-        return define_rule(mat, 9, state);
-        
-        
-    }
-     if (ul == mat && ur == mat && ll != mat && lr != mat) { //p3
-        if (p == 1)
-        {
-            return define_rule(mat, 6, state);
-        }
-        return define_rule(mat, 9, state);
-        
-    }
-    if (ul != mat && ur == mat && ll != mat && lr == mat) {//p10
-        if (p == 1)
-        {
-            return define_rule(mat, 6, state);
-        }
-        return define_rule(mat, 9, state);
-        
-    }
-     if (ul == mat && ur != mat && ll == mat && lr != mat) { //p5
-        if (p == 1)
-        {
-            return define_rule(mat, 6, state);
-        }
-        return define_rule(mat, 9, state);
-        
-    }
-    if (ul == mat && ur == mat && ll == mat && lr == mat) { //p15
-        if (p == 1)
-        {
-            return define_rule(mat, 14, state);
-        }
-        return define_rule(mat, 13, state);
-        
-    }
-    if (ul == mat && ur == mat && ll == mat && lr != mat) { //p7
-        return define_rule(mat, 14, state);
-        
-    }
-    if (ul != mat && ur == mat && ll == mat && lr == mat) { //p14
-        return define_rule(mat, 7, state);
-        
-    }
-     if (ul != mat && ur == mat && ll == mat && lr != mat) { //p6
-    
-        return define_rule(mat, 9, state);
-        
-    } 
-    if (ul == mat && ur != mat && ll != mat && lr == mat) { //p9
-
-        return define_rule(mat, 6, state);
-        
-    }
-    return state;
-}
-
-std::vector<int> gas_rules(int mat, int ul, int ur, int ll, int lr) {
-    std::vector<int> state = {ul,ur,ll,lr};
-
-    int p = 1+(rand() % 3);
-
-    if (ul == mat && ur == EMPTY && ll == EMPTY && lr == EMPTY) { //p1
-        
-        if(p == 1)
-        {
-            return define_rule(mat, 2, state);
-        }
-        return define_rule(mat, 8, state);
-        
-    }
-    if (ul == EMPTY && ur == mat && ll == EMPTY && lr == EMPTY) { //p2
-
-        if(p == 1)
-        {
-            return define_rule(mat, 1, state);
-        }
-        return define_rule(mat, 4, state);
-        
-    }
-    if (ul == EMPTY && ur == EMPTY && ll == EMPTY && lr == mat) {//p8
-
-        if(p == 1)
-        {
-            return define_rule(mat, 8, state);
-        }
-        return define_rule(mat, 2, state);
-
-    }
-    if (ul == EMPTY && ur == EMPTY && ll == mat && lr == EMPTY) {//p4
-        if(p == 1)
-        {
-            return define_rule(mat, 4, state);
-        }
-        return define_rule(mat, 1, state);
-       
-    } 
-    if (ul == EMPTY && ur == EMPTY && ll == mat && lr == mat) {//p12
-        if (p == 1)
-        {
-            return define_rule(mat, 6, state);
-        }
-        return define_rule(mat, 9, state);
-        
-        
-    }
-     if (ul == mat && ur == mat && ll == EMPTY && lr == EMPTY) { //p3
-        if (p == 1)
-        {
-            return define_rule(mat, 6, state);
-        }
-        return define_rule(mat, 9, state);
-        
-    }
-    if (ul == EMPTY && ur == mat && ll == EMPTY && lr == mat) {//p10
-        if (p == 1)
-        {
-            return define_rule(mat, 6, state);
-        }
-        return define_rule(mat, 9, state);
-        
-    }
-     if (ul == mat && ur == EMPTY && ll == mat && lr == EMPTY) { //p5
-        if (p == 1)
-        {
-            return define_rule(mat, 6, state);
-        }
-        return define_rule(mat, 9, state);
-        
-    }
-    if (ul == mat && ur == mat && ll == mat && lr == mat) { //p15
-        if (p == 1)
-        {
-            return define_rule(mat, 14, state);
-        }
-        return define_rule(mat, 13, state);
-        
-    }
-    if (ul == mat && ur == mat && ll == mat && lr == EMPTY) { //p7
-        return define_rule(mat, 14, state);
-        
-    }
-    if (ul == EMPTY && ur == mat && ll == mat && lr == mat) { //p14
-        return define_rule(mat, 7, state);
-        
-    }
-     if (ul == EMPTY && ur == mat && ll == mat && lr == EMPTY) { //p6
-    
-        return define_rule(mat, 9, state);
-        
-    } 
-    if (ul == mat && ur == EMPTY && ll == EMPTY && lr == mat) { //p9
-
-        return define_rule(mat, 6, state);
-        
-    }
-    return state;
-}
-
-std::vector<int>  water_rules(int mat, int ul, int ur, int ll, int lr){
-    std::vector<int> state = {ul,ur,ll,lr};
 
 
-    //Mat can only move through empty
-    if (ul == mat && ur == EMPTY && ll == EMPTY && lr == EMPTY)//p1
-    {
-        return define_rule(mat, 4, state);
-    }
-    if (ul == EMPTY && ur == mat && ll == EMPTY && lr == EMPTY)//p2
-    {
-        return define_rule(mat, 8, state);
-    }
-    if (ul == mat && ur == mat && ll == EMPTY && lr == EMPTY)//p3
-    {
-        return define_rule(mat, 12, state);    
-    }
-    if (ul == mat && ur == mat && ll == EMPTY && lr == mat)//p11
-    {
-        return define_rule(mat, 14, state);    
-    }
-    if (ul == mat && ur == mat && ll == mat && lr == EMPTY) //p7
-    {
-        return define_rule(mat, 13, state);    
-    }
-    if (ul == EMPTY && ur == mat && ll == mat && lr == EMPTY) //p6
-    {
-        return define_rule(mat, 12, state);    
-    }
-    if (ul == mat && ur == EMPTY && ll == EMPTY && lr == mat) //p9
-    {
-
-        return define_rule(mat, 12, state);    
-    }
-    if (ul == EMPTY && ur == mat && ll == EMPTY && lr == mat) //p10
-    {
-
-        return define_rule(mat, 12, state);    
-    }
-    if (ul == mat && ur == EMPTY && ll == mat && lr == EMPTY) //p5
-    {
-        
-        return define_rule(mat, 12, state);    
-    } 
-    if (ul == EMPTY && ur == EMPTY && ll == EMPTY && lr == mat) //p4
-    {   
-        
-        return define_rule(mat, 4, state);    
-    }
-    if (ul == EMPTY && ur == EMPTY && ll == mat && lr == EMPTY) //p8
-    {
-
-        return define_rule(mat, 8, state);    
-    } 
-
-    return state;
-}
-
-
-std::vector<int> sand_rules(int mat, int ul, int ur, int ll, int lr){
-    std::vector<int> state = {ul,ur,ll,lr};
-
-    //Mat can only move through empty
-    if (ul == mat && ur == EMPTY && ll == EMPTY && lr == EMPTY)//p1
-    {
-        return define_rule(mat, 4, state);
-    }
-    if (ul == EMPTY && ur == mat && ll == EMPTY && lr == EMPTY)//p2
-    {
-        return define_rule(mat, 8, state);
-    }
-    if (ul == mat && ur == mat && ll == EMPTY && lr == EMPTY)//p3
-    {
-        return define_rule(mat, 12, state);    
-    }
-    if (ul == mat && ur == mat && ll == EMPTY && lr == mat)//p11
-    {
-        return define_rule(mat, 14, state);    
-    }
-    if (ul == mat && ur == mat && ll == mat && lr == EMPTY) //p7
-    {
-        return define_rule(mat, 13, state);    
-    }
-    if (ul == EMPTY && ur == mat && ll == mat && lr == EMPTY) //p6
-    {
-        return define_rule(mat, 12, state);    
-    }
-    if (ul == mat && ur == EMPTY && ll == EMPTY && lr == mat) //p9
-    {
-        return define_rule(mat, 12, state);    
-    }
-    if (ul == EMPTY && ur == mat && ll == EMPTY && lr == mat) //p10
-    {
-
-        return define_rule(mat, 12, state);
-    }
-    if (ul == mat && ur == EMPTY && ll == mat && lr == EMPTY) //p5
-    {
-  
-        return define_rule(mat, 12, state);
-        
-    }
-    return state;
-}
-
-bool in_quad(int material, int upLeft, int upRight, int lowLeft, int lowRight)
-{
-    bool inQuad = false;
-    if (upLeft == material || upRight == material || lowLeft == material || lowRight == material)
-    {
-        inQuad = true;
-    }
-    return inQuad;
-}
-
-//Determines the rules of each quad
-std::vector<int> rules;
-void map_think(int xshift, int yshift) {
-    
-    for (int y=(YBOUND+yshift); y < (int)((SCR_HEIGHT/POINT_SIZE)-YBOUND)+yshift; y+=2)
-    {
-       for (int x=(XBOUND+xshift); x < (int)((SCR_WIDTH/POINT_SIZE)-XBOUND)+xshift; x+=2)
-       {
-            int upLeft = MAP[y+1][x];
-            int upRight = MAP[y+1][x+1];
-            int lowLeft = MAP[y][x];
-            int lowRight = MAP[y][x+1];
-
-            int state[4]; 
-
-            if((upLeft == EMPTY && upRight == EMPTY && lowLeft == EMPTY && lowRight == EMPTY) ||
-            (upLeft > EMPTY && upRight > EMPTY && lowLeft > EMPTY && lowRight > EMPTY) )
-            {
-            
-                continue;
-            }
-
-            if(in_quad(WOOD, upLeft, upRight, lowLeft, lowRight))
-            {
-                 if(in_quad(FIRE, upLeft, upRight, lowLeft, lowRight)){
-                    rules = fire_rules(FIRE, upLeft, upRight, lowLeft, lowRight);
-                    
-                    upLeft = rules[0];
-                    upRight = rules[1];
-                    lowLeft = rules[2];
-                    lowRight = rules[3];
-                }else{
-                    continue;
-                }
-            }
-
-            if(in_quad(SAND, upLeft, upRight, lowLeft, lowRight)){
-                rules  = sand_rules(SAND, upLeft, upRight, lowLeft, lowRight);
-
-                upLeft = rules[0];
-                upRight = rules[1];
-                lowLeft = rules[2];
-                lowRight = rules[3];
-            }
-
-            if(in_quad(WATER, upLeft, upRight, lowLeft, lowRight)){
-                rules = water_rules(WATER, upLeft, upRight, lowLeft, lowRight);
-
-                upLeft = rules[0];
-                upRight = rules[1];
-                lowLeft = rules[2];
-                lowRight = rules[3];
-            }
-
-            if(in_quad(GAS, upLeft, upRight, lowLeft, lowRight)){
-                rules = gas_rules(GAS, upLeft, upRight, lowLeft, lowRight);
-
-                upLeft = rules[0];
-                upRight = rules[1];
-                lowLeft = rules[2];
-                lowRight = rules[3];
-            }
-
-            if(in_quad(FIRE, upLeft, upRight, lowLeft, lowRight)){
-                rules = fire_rules(FIRE, upLeft, upRight, lowLeft, lowRight);
-                
-                upLeft = rules[0];
-                upRight = rules[1];
-                lowLeft = rules[2];
-                lowRight = rules[3];
-            }
-
-            MAP[y+1][x] = rules[0];
-            MAP[y+1][x+1] = rules[1];
-            MAP[y][x] = rules[2];
-            MAP[y][x+1] = rules[3];
-
-            
-         
-            
-        }
-    }
-
-}
 //END: PARTICLE RULES
 
 
@@ -890,22 +480,41 @@ void framebuffer_size_callback(GLFWwindow* window, int width, int height)
     glViewport(0, 0, width, height);
 }
 
+
+
 int main(){
     srand(time(NULL));
     setup_glfw();
-
+    
 
     std::unordered_map<std::string, Tile> tiles;
     std::unordered_map<std::string, Particle> particles;
+    std::vector<std::vector<int>> ruleset = {
+        {0,0,0,0}, {1,0,0,0}, {0,1,0,0}, {1,1,0,0},
+        {0,0,1,0}, {1,0,1,0}, {0,1,1,0}, {1,1,1,0},
+        {0,0,0,1}, {1,0,0,1}, {0,1,0,1}, {1,1,0,1},
+        {0,0,1,1}, {1,0,1,1}, {0,1,1,1}, {1,1,1,1}
+    };
     
 
     Particle sandParticle;
     sandParticle.id = SAND;
     sandParticle.color = {0.96f, 0.7f, 0.0f, 1.0f};
+    sandParticle.isDestroyer = false;
+    sandParticle.rules = {ruleset[1], ruleset[2], ruleset[3], ruleset[3], ruleset[11], ruleset[7],
+                    ruleset[6], ruleset[9], ruleset[10], ruleset[5]};
+     sandParticle.transitions = {ruleset[4], ruleset[8], ruleset[12], ruleset[14], ruleset[13], ruleset[12],
+                    ruleset[12], ruleset[12], ruleset[12], ruleset[12]};
+   
 
     Particle waterParticle;
     waterParticle.id = WATER;
     waterParticle.color = {0.35f, 0.7f, 1.0f, 1.0f};
+    waterParticle.isDestroyer = false;
+    waterParticle.rules = {ruleset[1], ruleset[2], ruleset[3], ruleset[3], ruleset[11], ruleset[7],
+                    ruleset[6], ruleset[9], ruleset[10], ruleset[5], ruleset[4], ruleset[8]};
+    waterParticle.transitions = {ruleset[4], ruleset[8], ruleset[12], ruleset[14], ruleset[13], ruleset[12],
+                    ruleset[12], ruleset[12], ruleset[12], ruleset[12], ruleset[8], ruleset[4]};
 
     Particle woodParticle;
     woodParticle.id = WOOD;
@@ -914,12 +523,26 @@ int main(){
     Particle gasParticle;
     gasParticle.id = GAS;
     gasParticle.color = {0.0f, 0.7f, 0.4f, 1.0f};
+    gasParticle.isDestroyer = false;
+    gasParticle.rules = {ruleset[1], ruleset[2], ruleset[8], ruleset[4], ruleset[12], ruleset[3],
+                    ruleset[10], ruleset[5], ruleset[7], ruleset[14], ruleset[6], ruleset[9]};
+    gasParticle.transitions = {ruleset[8], ruleset[4], ruleset[2], ruleset[1], ruleset[9], ruleset[9],
+                    ruleset[9], ruleset[9], ruleset[14], ruleset[7], ruleset[9], ruleset[6]};
+    gasParticle.transitions_p = {ruleset[2], ruleset[1], ruleset[8], ruleset[4], ruleset[6],
+                    ruleset[6], ruleset[6], ruleset[6]}; 
 
     Particle fireParticle;
     fireParticle.id = FIRE;
     fireParticle.color = {1.0f, 0.3f, 0.0f, 1.0f};
     fireParticle.secondColor = {0.85f, 0.78f, 0.0f, 1.0f};
-
+    fireParticle.isDestroyer = true;
+    fireParticle.rules = {ruleset[1], ruleset[2], ruleset[8], ruleset[4], ruleset[12], ruleset[3],
+                    ruleset[10], ruleset[5], ruleset[7], ruleset[14], ruleset[6], ruleset[9]};
+    fireParticle.transitions = {ruleset[8], ruleset[4], ruleset[2], ruleset[1], ruleset[9], ruleset[9],
+                    ruleset[9], ruleset[9], ruleset[14], ruleset[7], ruleset[9], ruleset[6]};
+    fireParticle.transitions_p = {ruleset[2], ruleset[1], ruleset[8], ruleset[4], ruleset[6],
+                    ruleset[6], ruleset[6], ruleset[6]}; 
+   
 
 
    
@@ -964,7 +587,15 @@ int main(){
     Mesh particleInstance;
     Mesh tileInstance;
     world.MAX_PARTICLES = ((SCR_WIDTH/ POINT_SIZE) * (SCR_HEIGHT/ POINT_SIZE));
+    world.SCR_HEIGHT = SCR_HEIGHT;
+    world.SCR_WIDTH = SCR_WIDTH;
+    world.XBOUND = XBOUND;
+    world.YBOUND = YBOUND;
+    world.POINT_SIZE = POINT_SIZE;
+    world.TILE_SIZE = TILE_SIZE;
+    
     Factory* factory = new Factory(world, particleInstance, tileInstance, tiles);
+    Think* think = new Think(world, MAP, particles);
 
     //Sets up shaders and VAO of particles and tiles
     factory->make_particles();
@@ -991,19 +622,19 @@ int main(){
         glClearColor(1.0f, 1.0f, 1.0f, 1.0f);
         glClear(GL_COLOR_BUFFER_BIT);
 
-
-        map_think(itrThink[itr_i][0], itrThink[itr_i][1]);
+        think->update_map();
+       // map_think(itrThink[itr_i][0], itrThink[itr_i][1], particles);
 
         //draw_tiles();
         render_particles(window, particleInstance, particles);
 
         render_gui(tileInstance.VAO, tileInstance.shader, tiles.at("LOG_BODY"), tiles.at("LOG_EDGE"), tiles.at("BUTTON"), particles);
         
-        if (itr_i < 3){    
-            itr_i += 1;
-        }else{ 
-            itr_i = 0;
-        }
+        // if (itr_i < 3){    
+        //     itr_i += 1;
+        // }else{ 
+        //     itr_i = 0;
+        // }
         glfwSwapBuffers(window);
         glfwPollEvents();
 
@@ -1016,6 +647,7 @@ int main(){
     // glDeleteBuffers(1, &EBO);
     // glDeleteProgram(shader);
     delete factory;
+    delete think;
     glfwTerminate();
     return 0;
 
