@@ -5,14 +5,14 @@ uniform vec4 backgroundColor;
 
 uniform bool isSelected;
 uniform sampler2D mainTexture;
-uniform sampler2D selectTexture;
+uniform sampler2D secondTexture;
 
 void main()
 {
 
 
 	vec4 texColor = texture(mainTexture, TexCoord);
-    vec4 mixTexColor = mix(texture(selectTexture, TexCoord), texture(mainTexture, TexCoord),  0.5);
+    vec4 mixTexColor = mix(texture(secondTexture, TexCoord), texture(mainTexture, TexCoord),  0.0);
     
     if(texColor.a < 0.1){
         if(backgroundColor.a < 0.1)
@@ -22,7 +22,10 @@ void main()
 
             FragColor = vec4(backgroundColor);
         }
-    } else {
+    } else if(mixTexColor.a < 0.1 )
+    {
+        FragColor = texColor;
+    }else {
         if (!isSelected)
         {
             FragColor = texColor; 

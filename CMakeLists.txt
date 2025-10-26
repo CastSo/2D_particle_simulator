@@ -9,7 +9,7 @@ set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} ${CMAKE_CURRENT_SOURCE_DIR}/cmake)
 
 find_package(OpenGL REQUIRED)
 find_package(glfw3 REQUIRED)
-
+find_package(Freetype REQUIRED)
 
 add_executable(sand
     src/config.h
@@ -36,4 +36,5 @@ target_include_directories(sand
 target_link_libraries(sand
     glfw
     OpenGL::GL
+    Freetype::Freetype
 )

@@ -6,6 +6,7 @@ struct Mesh {
     unsigned int VAO, VBO, EBO;
     unsigned int transformVBO;
     unsigned int colorVBO;
+    unsigned int textureVBO;
     unsigned int shader;
 };
 
@@ -20,15 +21,25 @@ struct Particle {
     std::vector<std::vector<int>> transitions_p;
 };
 
+struct Character {
+    unsigned int textureBufr;
+    glm::ivec2 size;
+    glm::ivec2 bearing;
+    unsigned int advance;
+};
+
 struct Tile {
     unsigned int mainTextureBufr;
-    unsigned int selectTextureBufr;
+    unsigned int secondTextureBufr;
     unsigned int isSelected;
     unsigned int dimension;
     glm::vec3 color;
     std::string imgMainPath;
-    std::string imgSelectPath;
+    std::string imgSecondPath;
 };
+
+
+
 
 
 struct World {

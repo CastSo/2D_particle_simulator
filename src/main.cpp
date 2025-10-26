@@ -28,6 +28,7 @@ int FIRE = 5;
 std::vector<std::vector<int>> MAP;
 int GUI_LAYOUT[(int)(SCR_WIDTH/TILE_SIZE)];
 int ACTIVE_PARTICLE;
+int HOVER_PARTICLE;
 
 bool mouseDown;
 
@@ -73,6 +74,177 @@ void setup_gui(std::unordered_map<std::string, Particle> particles) {
 //END: SETUP LAYOUT
 
 //START: RENDER OBJECTS
+
+void render_text(std::map<GLchar, Character> characters, Mesh& mesh, std::unordered_map<std::string, Particle> particles, 
+            float x, float y, float scale, glm::vec3 color)
+{
+    std::string text;
+    glUseProgram(mesh.shader);
+    glUniform3f(glGetUniformLocation(mesh.shader, "textColor"), color.x, color.y, color.z);
+    glActiveTexture(GL_TEXTURE0);
+    glBindVertexArray(mesh.VAO);
+
+    for (auto particle : particles) {
+        if(particle.second.id == HOVER_PARTICLE) {
+            if(ACTIVE_PARTICLE == HOVER_PARTICLE) {
+                text = "ACTIVE:";
+            } 
+            text += particle.first;
+        }
+    }
+     // iterate through all characters
+    std::string::const_iterator c;
+    for (c = text.begin(); c != text.end(); c++) 
+    {
+        Character ch = characters[*c];
+
+        float xpos = x + ch.bearing.x * scale;
+        float ypos = y - (ch.size.y - ch.bearing.y) * scale;
+
+        float w = ch.size.x * scale;
+        float h = ch.size.y * scale;
+        // update VBO for each character
+        float vertices[6][4] = {
+            { xpos,     ypos + h,   0.0f, 0.0f },            
+            { xpos,     ypos,       0.0f, 1.0f },
+            { xpos + w, ypos,       1.0f, 1.0f },
+
+            { xpos,     ypos + h,   0.0f, 0.0f },
+            { xpos + w, ypos,       1.0f, 1.0f },
+            { xpos + w, ypos + h,   1.0f, 0.0f }           
+        };
+        // render glyph texture over quad
+        glBindTexture(GL_TEXTURE_2D, ch.textureBufr);
+        // update content of VBO memory
+        glBindBuffer(GL_ARRAY_BUFFER, mesh.VBO);
+        glBufferSubData(GL_ARRAY_BUFFER, 0, sizeof(vertices), vertices); // be sure to use glBufferSubData and not glBufferData
+
+        glBindBuffer(GL_ARRAY_BUFFER, 0);
+        // render quad
+        glDrawArrays(GL_TRIANGLES, 0, 6);
+        // now advance cursors for next glyph (note that advance is number of 1/64 pixels)
+        x += (ch.advance >> 6) * scale; // bitshift by 6 to get value in pixels (2^6 = 64 (divide amount of 1/64th pixels by 64 to get amount of pixels))
+    }
+    glBindVertexArray(0);
+    glBindTexture(GL_TEXTURE_2D, 0);
+}
+
+void render_gui(Mesh& mesh, Tile body, Tile edge, Tile frame, 
+        std::unordered_map<std::string, Particle> particles, std::map<GLchar, Character> characters) {
+    float tileWidth =  TILE_SIZE / (float)SCR_WIDTH;   
+    float tileHeight =  TILE_SIZE / (float)SCR_HEIGHT; 
+     
+    float xpos = 0;
+    float ypos = 0;
+    float xN = -1.0f + (2.0f * (xpos + 0.5f) ) * tileWidth;
+    float yN = -1.0f + (2.0f * (ypos + 0.5f) ) * tileHeight; 
+
+    double xmouse, ymouse;
+    glfwGetCursorPos(window, &xmouse, &ymouse);
+    int ym = (int)(SCR_HEIGHT - std::floor(ymouse))/TILE_SIZE;
+    int xm = ((int)std::floor(xmouse))/TILE_SIZE;
+    
+    glBindVertexArray(mesh.VAO);
+    glUseProgram(mesh.shader);
+
+    glm::mat4 transform = glm::mat4(1.0f);
+    transform = glm::translate(transform, glm::vec3(xN, yN, 1.0f));
+    transform = glm::scale(transform, glm::vec3(tileWidth, tileHeight, 1.0f));
+    glActiveTexture(GL_TEXTURE0);
+    glBindTexture(GL_TEXTURE_2D, edge.mainTextureBufr);
+
+    glUniform1i(frame.isSelected, false);
+    glActiveTexture(GL_TEXTURE1);
+    glBindTexture(GL_TEXTURE_2D, 0);
+
+    //get matrix's uniform location and set matrix
+    
+    unsigned int transformLoc = glGetUniformLocation(mesh.shader, "transform");
+    glUniformMatrix4fv(transformLoc, 1, GL_FALSE, glm::value_ptr(transform));
+
+    unsigned int bgColorLoc = glGetUniformLocation(mesh.shader, "backgroundColor");
+    glUniform4f(bgColorLoc, edge.color.x, edge.color.y, edge.color.z, 0.0f); 
+
+
+    glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, 0);
+    glBindTexture(GL_TEXTURE_2D, 0);
+
+    auto p = particles.begin();
+    for (int x = 1; x < (int)(SCR_WIDTH/TILE_SIZE); x++)
+    {
+        xN = -1.0f + (2.0f * (x + 0.5) ) * tileWidth;
+        if (GUI_LAYOUT[x] != EMPTY)
+        {
+
+            //std::cout << GUI_LAYOUT[x] << std::endl;
+            // glBindVertexArray(frame.VAO);
+
+            glActiveTexture(GL_TEXTURE0);
+            glBindTexture(GL_TEXTURE_2D, frame.mainTextureBufr);
+
+            if(detect_mouse(xm, ym) == GUI_LAYOUT[x])
+            {
+                HOVER_PARTICLE = GUI_LAYOUT[x];
+                glUniform1i(frame.isSelected, true);
+                glActiveTexture(GL_TEXTURE1);
+                glBindTexture(GL_TEXTURE_2D, frame.secondTextureBufr);
+       
+            }else if (ACTIVE_PARTICLE == GUI_LAYOUT[x])
+            {
+                glUniform1i(frame.isSelected, true);
+                glActiveTexture(GL_TEXTURE1);
+                glBindTexture(GL_TEXTURE_2D, frame.secondTextureBufr);
+            }
+            else {
+                glUniform1i(frame.isSelected, false);
+                glActiveTexture(GL_TEXTURE1);
+                glBindTexture(GL_TEXTURE_2D, 0);
+            }
+
+
+            glm::mat4 transform = glm::mat4(1.0f);
+            transform = glm::translate(transform, glm::vec3(xN, yN, 1.0f));
+            transform = glm::scale(transform, glm::vec3(tileWidth, tileHeight, 1.0f));
+
+            //get matrix's uniform location and set matrix
+            unsigned int transformLoc = glGetUniformLocation(mesh.shader, "transform");
+            glUniformMatrix4fv(transformLoc, 1, GL_FALSE, glm::value_ptr(transform));        
+            
+
+            unsigned int bgColorLoc = glGetUniformLocation(mesh.shader, "backgroundColor");
+            glUniform4f(bgColorLoc, p->second.color.x, p->second.color.y, p->second.color.z, 1.0f); 
+
+            p++;
+        
+        }
+        else {
+            // glBindVertexArray(body.VAO);
+            glActiveTexture(GL_TEXTURE0);
+            glBindTexture(GL_TEXTURE_2D, body.mainTextureBufr);
+
+            glm::mat4 transform = glm::mat4(1.0f);
+            transform = glm::translate(transform, glm::vec3(xN, yN, 1.0f));
+            transform = glm::scale(transform, glm::vec3(tileWidth, tileHeight, 1.0f));
+
+            //get matrix's uniform location and set matrix
+            glUseProgram(mesh.shader);
+            unsigned int transformLoc = glGetUniformLocation(mesh.shader, "transform");
+            glUniformMatrix4fv(transformLoc, 1, GL_FALSE, glm::value_ptr(transform));
+
+        }
+        
+        glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, 0);
+
+        //Resets texture to just main
+        glUniform1i(frame.isSelected, false);
+        glActiveTexture(GL_TEXTURE1);
+        glBindTexture(GL_TEXTURE_2D, 0);
+        
+    }
+    
+}
+
+
 glm::mat4 map_particle(int x, int y)
 {
     glm::mat4 transform = glm::mat4(1.0f);
@@ -90,6 +262,8 @@ glm::mat4 map_particle(int x, int y)
     return transform;
 
 }
+
+
 
 void render_particles(GLFWwindow *window, Mesh mesh, std::unordered_map<std::string, Particle> particles) {
 
@@ -156,111 +330,7 @@ void render_particles(GLFWwindow *window, Mesh mesh, std::unordered_map<std::str
 }
 
 
-void render_gui(unsigned int VAO, unsigned int shader, Tile body, Tile edge, Tile frame, std::unordered_map<std::string, Particle> particles) {
-    float tileWidth =  TILE_SIZE / (float)SCR_WIDTH;   
-    float tileHeight =  TILE_SIZE / (float)SCR_HEIGHT; 
-     
-    float xpos = 0;
-    float ypos = 0;
-    float xN = -1.0f + (2.0f * (xpos + 0.5f) ) * tileWidth;
-    float yN = -1.0f + (2.0f * (ypos + 0.5f) ) * tileHeight; 
 
-    double xmouse, ymouse;
-    glfwGetCursorPos(window, &xmouse, &ymouse);
-    int ym = (int)(SCR_HEIGHT - std::floor(ymouse))/TILE_SIZE;
-    int xm = ((int)std::floor(xmouse))/TILE_SIZE;
-    
-    glBindVertexArray(VAO);
-    glUseProgram(shader);
-
-    glm::mat4 transform = glm::mat4(1.0f);
-    transform = glm::translate(transform, glm::vec3(xN, yN, 1.0f));
-    transform = glm::scale(transform, glm::vec3(tileWidth, tileHeight, 1.0f));
-    glActiveTexture(GL_TEXTURE0);
-    glBindTexture(GL_TEXTURE_2D, edge.mainTextureBufr);
-
-    glUniform1i(frame.isSelected, false);
-    glActiveTexture(GL_TEXTURE1);
-    glBindTexture(GL_TEXTURE_2D, 0);
-
-    //get matrix's uniform location and set matrix
-    
-    unsigned int transformLoc = glGetUniformLocation(shader, "transform");
-    glUniformMatrix4fv(transformLoc, 1, GL_FALSE, glm::value_ptr(transform));
-
-    unsigned int bgColorLoc = glGetUniformLocation(shader, "backgroundColor");
-    glUniform4f(bgColorLoc, edge.color.x, edge.color.y, edge.color.z, 0.0f); 
-
-
-    glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, 0);
-    glBindTexture(GL_TEXTURE_2D, 0);
-
-    auto p = particles.begin();
-    for (int x = 1; x < (int)(SCR_WIDTH/TILE_SIZE); x++)
-    {
-        xN = -1.0f + (2.0f * (x + 0.5) ) * tileWidth;
-        if (GUI_LAYOUT[x] != EMPTY)
-        {
-
-            //std::cout << GUI_LAYOUT[x] << std::endl;
-            // glBindVertexArray(frame.VAO);
-
-            glActiveTexture(GL_TEXTURE0);
-            glBindTexture(GL_TEXTURE_2D, frame.mainTextureBufr);
-
-            if(detect_mouse(xm, ym) == GUI_LAYOUT[x])
-            {
-                glUniform1i(frame.isSelected, true);
-                glActiveTexture(GL_TEXTURE1);
-                glBindTexture(GL_TEXTURE_2D, frame.selectTextureBufr);
-            }else {
-                glUniform1i(frame.isSelected, false);
-                glActiveTexture(GL_TEXTURE1);
-                glBindTexture(GL_TEXTURE_2D, 0);
-            }
-
-
-            glm::mat4 transform = glm::mat4(1.0f);
-            transform = glm::translate(transform, glm::vec3(xN, yN, 1.0f));
-            transform = glm::scale(transform, glm::vec3(tileWidth, tileHeight, 1.0f));
-
-            //get matrix's uniform location and set matrix
-            unsigned int transformLoc = glGetUniformLocation(shader, "transform");
-            glUniformMatrix4fv(transformLoc, 1, GL_FALSE, glm::value_ptr(transform));        
-            
-
-            unsigned int bgColorLoc = glGetUniformLocation(shader, "backgroundColor");
-            glUniform4f(bgColorLoc, p->second.color.x, p->second.color.y, p->second.color.z, 1.0f); 
-
-            p++;
-        
-        }
-        else {
-            // glBindVertexArray(body.VAO);
-            glActiveTexture(GL_TEXTURE0);
-            glBindTexture(GL_TEXTURE_2D, body.mainTextureBufr);
-
-            glm::mat4 transform = glm::mat4(1.0f);
-            transform = glm::translate(transform, glm::vec3(xN, yN, 1.0f));
-            transform = glm::scale(transform, glm::vec3(tileWidth, tileHeight, 1.0f));
-
-            //get matrix's uniform location and set matrix
-            glUseProgram(shader);
-            unsigned int transformLoc = glGetUniformLocation(shader, "transform");
-            glUniformMatrix4fv(transformLoc, 1, GL_FALSE, glm::value_ptr(transform));
-
-        }
-        
-        glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, 0);
-
-        //Resets texture to just main
-        glUniform1i(frame.isSelected, false);
-        glActiveTexture(GL_TEXTURE1);
-        glBindTexture(GL_TEXTURE_2D, 0);
-        
-    }
-    
-}
 
 
 
@@ -319,48 +389,6 @@ void add_particles(GLFWwindow *window, int id) {
         }
 
 }
-
-//START: PARTICLE RULES
-std::vector<int> define_rule(int material, int permutation, std::vector<int> state)
-{
-    std::vector<int> rule;
-    std::vector<std::vector<int>> ruleset = {
-        {0,0,0,0}, {material,0,0,0}, {0,material,0,0}, {material,material,0,0},
-        {0,0,material,0}, {material,0,material,0}, {0,material,material,0}, {material,material,material,0},
-        {0,0,0,material}, {material,0,0,material}, {0,material,0,material}, {material,material,0,material},
-        {0,0,material,material}, {material,0,material,material}, {0,material,material,material}, {material,material,material,material}
-    };
-    for(int i=0; i<4; i++)
-    {   
-
-            if (material == FIRE)
-            {
-                if(state[i] == EMPTY || state[i] == material || state[i] == WOOD)//Passes only through empty, wood, and same material
-                {    
-                    rule.push_back(ruleset[permutation][i]);
-                }else
-                {
-                    rule.push_back(state[i]);
-                }   
-            }else 
-            {    if(state[i] == EMPTY || state[i] == material)//Passes only through empty and same material
-                {    
-                    rule.push_back(ruleset[permutation][i]);
-                }else
-                {
-                    rule.push_back(state[i]);
-                }
-            }
-
-            
-    }
-    return rule;
-}
-
-
-
-
-//END: PARTICLE RULES
 
 
 void setup_glfw() {
@@ -422,7 +450,6 @@ int detect_mouse(int xN, int yN) {
         {
             
             
-            //std::cout << ACTIVE_PARTICLE << std::endl;
             
             return GUI_LAYOUT[x];
         }
@@ -462,6 +489,7 @@ void process_mouse(GLFWwindow* window, int button, int action, int mods)
     int selected_coords = detect_mouse(xN, yN);
     if(detect_mouse(xN, yN) != EMPTY)
     {
+        
         ACTIVE_PARTICLE = selected_coords;
     }
     
@@ -483,9 +511,13 @@ void framebuffer_size_callback(GLFWwindow* window, int width, int height)
 
 
 int main(){
+    
     srand(time(NULL));
     setup_glfw();
-    
+
+    //glEnable(GL_CULL_FACE);
+    glEnable(GL_BLEND);
+    glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 
     std::unordered_map<std::string, Tile> tiles;
     std::unordered_map<std::string, Particle> particles;
@@ -560,7 +592,7 @@ int main(){
     particleButton.imgMainPath = "../images/wood_frame.png";
     particleButton.dimension = (int)TILE_SIZE;
     particleButton.color = {0.7f, 0.6f, 0.0f};
-    particleButton.imgSelectPath = selectFramePath;
+    particleButton.imgSecondPath = selectFramePath;
 
 
     
@@ -568,14 +600,16 @@ int main(){
     logEdge.imgMainPath  = "../images/wood_edge.png";
     logEdge.dimension = (int)TILE_SIZE;
     logEdge.color = {0.0f, 0.0f, 0.0f};
-    logEdge.imgSelectPath = selectFramePath;
+    logEdge.imgSecondPath = selectFramePath;
 
 
     Tile logBody;
     logBody.imgMainPath  = "../images/wood_body.png";
     logBody.dimension = (int)TILE_SIZE;
     logEdge.color = {0.0f, 0.0f, 0.0f};
-    logEdge.imgSelectPath = selectFramePath;
+    logEdge.imgSecondPath = selectFramePath;
+
+    Tile label;
 
 
 
@@ -583,9 +617,11 @@ int main(){
     tiles.insert({"LOG_EDGE", logEdge});
     tiles.insert({"LOG_BODY", logBody});
 
+    std::map<GLchar, Character> characters;
     World world;
     Mesh particleInstance;
     Mesh tileInstance;
+    Mesh charQuad;
     world.MAX_PARTICLES = ((SCR_WIDTH/ POINT_SIZE) * (SCR_HEIGHT/ POINT_SIZE));
     world.SCR_HEIGHT = SCR_HEIGHT;
     world.SCR_WIDTH = SCR_WIDTH;
@@ -593,14 +629,15 @@ int main(){
     world.YBOUND = YBOUND;
     world.POINT_SIZE = POINT_SIZE;
     world.TILE_SIZE = TILE_SIZE;
-    
-    Factory* factory = new Factory(world, particleInstance, tileInstance, tiles);
+    Factory* factory = new Factory(world, particleInstance, tileInstance, charQuad, tiles, characters);
     Think* think = new Think(world, MAP, particles);
 
     //Sets up shaders and VAO of particles and tiles
     factory->make_particles();
     factory->make_tiles();
+    factory-> make_char();
 
+    std::cout << characters.size() << std::endl;
     setup_map();
     setup_gui(particles);
 
@@ -623,18 +660,12 @@ int main(){
         glClear(GL_COLOR_BUFFER_BIT);
 
         think->update_map();
-       // map_think(itrThink[itr_i][0], itrThink[itr_i][1], particles);
 
-        //draw_tiles();
         render_particles(window, particleInstance, particles);
-
-        render_gui(tileInstance.VAO, tileInstance.shader, tiles.at("LOG_BODY"), tiles.at("LOG_EDGE"), tiles.at("BUTTON"), particles);
+        render_gui(tileInstance, tiles.at("LOG_BODY"), tiles.at("LOG_EDGE"), tiles.at("BUTTON"), particles, characters);
+        render_text(characters, charQuad, particles , 0.0f, (SCR_HEIGHT-16), 0.3f,  glm::vec3(0.5, 0.8f, 0.2f));
         
-        // if (itr_i < 3){    
-        //     itr_i += 1;
-        // }else{ 
-        //     itr_i = 0;
-        // }
+ 
         glfwSwapBuffers(window);
         glfwPollEvents();
 
@@ -642,10 +673,7 @@ int main(){
 
     }
 
-    // glDeleteVertexArrays(1, &VAO);
-    // glDeleteBuffers(1, &VBO);
-    // glDeleteBuffers(1, &EBO);
-    // glDeleteProgram(shader);
+
     delete factory;
     delete think;
     glfwTerminate();

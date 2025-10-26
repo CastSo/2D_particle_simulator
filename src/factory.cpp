@@ -2,16 +2,29 @@
 
 
 
-Factory::Factory(World world, Mesh& particleInstance,  Mesh& tileInstance, std::unordered_map<std::string, Tile>& tiles): 
+Factory::Factory(World world, Mesh& particleInstance,  Mesh& tileInstance, Mesh& charQuad,
+            std::unordered_map<std::string, Tile>& tiles, std::map<GLchar, Character>& characters): 
     particleInstance(particleInstance),
     tileInstance(tileInstance),
-    tiles(tiles){
+    charQuad(charQuad),
+    tiles(tiles),
+    characters(characters){
         maxParticles = world.MAX_PARTICLES;
+        SCR_WIDTH = world.SCR_WIDTH;
+        SCR_HEIGHT = world.SCR_HEIGHT;
     }
 
 Factory::~Factory() {
+    glDeleteVertexArrays(1, &particleInstance.VAO);
+    glDeleteBuffers(1, &particleInstance.VBO);
+    glDeleteBuffers(1, &particleInstance.EBO);
+    glDeleteProgram(particleInstance.shader);
 
 
+    glDeleteVertexArrays(1, &tileInstance.VAO);
+    glDeleteBuffers(1, &tileInstance.VBO);
+    glDeleteBuffers(1, &tileInstance.EBO);
+    glDeleteProgram(tileInstance.shader);
 }
 
 void Factory::make_particles()
@@ -46,6 +59,23 @@ void Factory::make_tiles(){
         make_tile_textures(tileShader, tile.second, "../images/select_frame.png");
     }
     
+}
+
+void Factory::make_char() {
+    unsigned int charShader;
+    charShader  = make_shader(
+        "../src/view/character_shader.vert",
+        "../src/view/character_shader.frag"
+    );
+
+    make_char_quad(charShader);
+
+
+    charQuad.shader = charShader;
+    
+    
+
+
 }
 
 //START: MAKE MESHES
@@ -164,9 +194,9 @@ unsigned int Factory::make_tile_instance() {
     return VAO;
 }
 
-void Factory::make_tile_textures(unsigned int shader, Tile& tile, std::string imgSelectPath) 
+void Factory::make_tile_textures(unsigned int shader, Tile& tile, std::string imgSecondPath) 
 {
-    unsigned int mainTexture, selectTexture;
+    unsigned int mainTexture, secondTexture;
 
     glGenTextures(1, &mainTexture);
     glBindTexture(GL_TEXTURE_2D, mainTexture); 
@@ -193,8 +223,8 @@ void Factory::make_tile_textures(unsigned int shader, Tile& tile, std::string im
     }
     stbi_image_free(data);
 
-    glGenTextures(1, &selectTexture);
-    glBindTexture(GL_TEXTURE_2D, selectTexture); 
+    glGenTextures(1, &secondTexture);
+    glBindTexture(GL_TEXTURE_2D, secondTexture); 
      // set the texture wrapping parameters
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);	// set texture wrapping to GL_REPEAT (default wrapping method)
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
@@ -204,7 +234,7 @@ void Factory::make_tile_textures(unsigned int shader, Tile& tile, std::string im
 
     stbi_set_flip_vertically_on_load(true); // tell stb_image.h to flip loaded texture's on the y-axis.
 
-    data = stbi_load(imgSelectPath.c_str(), &width, &height, &nrChannels, 0);
+    data = stbi_load(imgSecondPath.c_str(), &width, &height, &nrChannels, 0);
     if (data)
     {
         glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, width, height, 0, GL_RGBA, GL_UNSIGNED_BYTE, data);
@@ -219,8 +249,8 @@ void Factory::make_tile_textures(unsigned int shader, Tile& tile, std::string im
     glUseProgram(shader);
     unsigned int mainTexLoc = glGetUniformLocation(shader, "mainTexture");
     glUniform1i(mainTexLoc, 0);
-    unsigned int selectTexLoc = glGetUniformLocation(shader, "selectTexture");
-    glUniform1i(selectTexLoc, 1);
+    unsigned int secondTexLoc = glGetUniformLocation(shader, "secondTexture");
+    glUniform1i(secondTexLoc, 1);
     
 
     unsigned int isSelectLoc = glGetUniformLocation(shader, "isSelected");
@@ -228,10 +258,97 @@ void Factory::make_tile_textures(unsigned int shader, Tile& tile, std::string im
     
 
     tile.mainTextureBufr = mainTexture;
-    tile.selectTextureBufr = selectTexture;
+    tile.secondTextureBufr = secondTexture;
     tile.isSelected = isSelectLoc;
 }
 
+void Factory::make_char_quad(unsigned int shader) {
+    glUseProgram(shader);
+    glm::mat4 projection = glm::ortho(0.0f, static_cast<float>(SCR_WIDTH), 0.0f, static_cast<float>(SCR_HEIGHT));
 
+    glUniformMatrix4fv(glGetUniformLocation(shader, "projection"), 1, GL_FALSE, glm::value_ptr(projection));
+
+    FT_Library ft;
+    if (FT_Init_FreeType(&ft))
+    {
+        std::cout << "ERROR::FREETYPE: Could not init FreeType Library" << std::endl;
+        
+    }
+
+    
+    std::string fontPath = std::filesystem::path("../src/fonts/Space_Mono/SpaceMono-Regular.ttf");
+    if (fontPath.empty())
+    {
+        std::cout << "ERROR::FREETYPE: Failed to load font" << std::endl;  
+        
+    }
+
+    FT_Face face;
+    if (FT_New_Face(ft, fontPath.c_str(), 0, &face)) {
+        std::cout << "ERROR::FREETYPE: Failed to load font" << std::endl;
+       
+    } else {
+        FT_Set_Pixel_Sizes(face, 0, 48);
+        glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
+
+         for (unsigned char c = 0; c < 128; c++)
+        {
+             if (FT_Load_Char(face, c, FT_LOAD_RENDER))
+            {
+                std::cout << "ERROR::FREETYTPE: Failed to load Glyph" << std::endl;
+                continue;
+            }
+            // generate texture
+            unsigned int charTexture;
+            glGenTextures(1, &charTexture);
+            glBindTexture(GL_TEXTURE_2D, charTexture);
+            glTexImage2D(
+                GL_TEXTURE_2D,
+                0,
+                GL_RED,
+                face->glyph->bitmap.width,
+                face->glyph->bitmap.rows,
+                0,
+                GL_RED,
+                GL_UNSIGNED_BYTE,
+                face->glyph->bitmap.buffer
+            );
+            // set texture options
+            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+            // now store character for later use
+            Character character = {
+                charTexture,
+                glm::ivec2(face->glyph->bitmap.width, face->glyph->bitmap.rows),
+                glm::ivec2(face->glyph->bitmap_left, face->glyph->bitmap_top),
+                static_cast<unsigned int>(face->glyph->advance.x)
+            };
+            characters.insert(std::pair<char, Character>(c, character));
+            }
+
+            glBindTexture(GL_TEXTURE_2D, 0);
+        }
+
+    // destroy FreeType once we're finished
+    FT_Done_Face(face);
+    FT_Done_FreeType(ft);
+    
+    unsigned int VAO, VBO;
+    glGenVertexArrays(1, &VAO);
+    glGenBuffers(1, &VBO);
+    glBindVertexArray(VAO);
+    glBindBuffer(GL_ARRAY_BUFFER, VBO);
+    glBufferData(GL_ARRAY_BUFFER, sizeof(float) * 6 * 4, NULL, GL_DYNAMIC_DRAW);
+    glEnableVertexAttribArray(0);
+    glVertexAttribPointer(0, 4, GL_FLOAT, GL_FALSE, 4 * sizeof(float), 0);
+    glBindBuffer(GL_ARRAY_BUFFER, 0);
+    glBindVertexArray(0);
+
+    charQuad.VAO = VAO;
+    charQuad.VBO = VBO;
+
+}
 
 //END: MAKE MESHES

@@ -20,6 +20,10 @@
 #include "shader.h"
 #include <stb_image.h>
 
+#include <ft2build.h>
+#include FT_FREETYPE_H  
+
+
 #include <bits/stdc++.h>
 #include <time.h>
 #include <chrono>
