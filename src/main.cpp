@@ -86,10 +86,11 @@ void render_text(std::map<GLchar, Character> characters, Mesh& mesh, std::unorde
 
     for (auto particle : particles) {
         if(particle.second.id == HOVER_PARTICLE) {
-            if(ACTIVE_PARTICLE == HOVER_PARTICLE) {
-                text = "ACTIVE:";
-            } 
             text += particle.first;
+            break;
+        } else if (HOVER_PARTICLE == 0){
+            text == "";
+            break;
         }
     }
      // iterate through all characters
@@ -184,13 +185,14 @@ void render_gui(Mesh& mesh, Tile body, Tile edge, Tile frame,
 
             if(detect_mouse(xm, ym) == GUI_LAYOUT[x])
             {
-                HOVER_PARTICLE = GUI_LAYOUT[x];
+                // HOVER_PARTICLE = GUI_LAYOUT[x];
                 glUniform1i(frame.isSelected, true);
                 glActiveTexture(GL_TEXTURE1);
                 glBindTexture(GL_TEXTURE_2D, frame.secondTextureBufr);
        
             }else if (ACTIVE_PARTICLE == GUI_LAYOUT[x])
             {
+                // HOVER_PARTICLE = ACTIVE_PARTICLE;
                 glUniform1i(frame.isSelected, true);
                 glActiveTexture(GL_TEXTURE1);
                 glBindTexture(GL_TEXTURE_2D, frame.secondTextureBufr);
@@ -449,11 +451,12 @@ int detect_mouse(int xN, int yN) {
         if((yN <= yG && yN >= 0) && (xN <= xG && xN > prev_xG))
         {
             
-            
+            HOVER_PARTICLE = GUI_LAYOUT[x];
             
             return GUI_LAYOUT[x];
         }
     }
+    HOVER_PARTICLE = 0;
     return EMPTY;
 }
 
@@ -542,11 +545,12 @@ int main(){
     Particle waterParticle;
     waterParticle.id = WATER;
     waterParticle.color = {0.35f, 0.7f, 1.0f, 1.0f};
-    waterParticle.isDestroyer = false;
+    waterParticle.isDestroyer = true;
     waterParticle.rules = {ruleset[1], ruleset[2], ruleset[3], ruleset[3], ruleset[11], ruleset[7],
                     ruleset[6], ruleset[9], ruleset[10], ruleset[5], ruleset[4], ruleset[8]};
     waterParticle.transitions = {ruleset[4], ruleset[8], ruleset[12], ruleset[14], ruleset[13], ruleset[12],
                     ruleset[12], ruleset[12], ruleset[12], ruleset[12], ruleset[8], ruleset[4]};
+    waterParticle.destroyables = {FIRE};
 
     Particle woodParticle;
     woodParticle.id = WOOD;
@@ -574,7 +578,7 @@ int main(){
                     ruleset[9], ruleset[9], ruleset[14], ruleset[7], ruleset[9], ruleset[6]};
     fireParticle.transitions_p = {ruleset[2], ruleset[1], ruleset[8], ruleset[4], ruleset[6],
                     ruleset[6], ruleset[6], ruleset[6]}; 
-   
+    fireParticle.destroyables = {WOOD};
 
 
    
@@ -637,7 +641,6 @@ int main(){
     factory->make_tiles();
     factory-> make_char();
 
-    std::cout << characters.size() << std::endl;
     setup_map();
     setup_gui(particles);
 

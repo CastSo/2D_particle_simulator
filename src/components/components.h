@@ -19,6 +19,7 @@ struct Particle {
     std::vector<std::vector<int>> rules;
     std::vector<std::vector<int>> transitions;
     std::vector<std::vector<int>> transitions_p;
+    std::vector<int> destroyables; 
 };
 
 struct Character {

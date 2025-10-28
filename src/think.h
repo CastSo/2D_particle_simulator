@@ -16,8 +16,9 @@ class Think {
         int itr_i;
 
         bool in_quad(int material, int upLeft, int upRight, int lowLeft, int lowRight);
-        std::vector<int> process_rules(int material, bool isDestroyer, std::vector<int> state, std::vector<std::vector<int>> rules, std::vector<std::vector<int>> transitions, std::vector<std::vector<int>> transitions_p);
-        std::vector<int> process_rules(int material, bool isDestroyer, std::vector<int> state, std::vector<std::vector<int>> rules, std::vector<std::vector<int>> transitions);
+        std::vector<int> process_rules(int material, std::vector<int> state, std::vector<std::vector<int>> rules, std::vector<int> destroyables,
+                                std::vector<std::vector<int>> transitions, std::vector<std::vector<int>> transitions_p);
+        std::vector<int> process_rules(int material, std::vector<int> state, std::vector<std::vector<int>> rules,std::vector<int> destroyables, std::vector<std::vector<int>> transitions);
         void map_think(int xshift, int yshift);
 
 };

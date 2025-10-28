@@ -51,8 +51,8 @@ void Think::map_think(int xshift, int yshift) {
             {
                    
                 if(in_quad(particles.at("FIRE").id, upLeft, upRight, lowLeft, lowRight)){
-                    rules = process_rules(particles.at("FIRE").id, particles.at("FIRE").isDestroyer, {upLeft, upRight, lowLeft, lowRight}, particles.at("FIRE").rules, particles.at("FIRE").transitions,
-                                            particles.at("FIRE").transitions_p);
+                    rules = process_rules(particles.at("FIRE").id,  {upLeft, upRight, lowLeft, lowRight}, particles.at("FIRE").rules,
+                                        particles.at("FIRE").destroyables, particles.at("FIRE").transitions, particles.at("FIRE").transitions_p);    
                         
                     upLeft = rules[0];
                     upRight = rules[1];
@@ -64,7 +64,7 @@ void Think::map_think(int xshift, int yshift) {
             }
 
             if(in_quad(particles.at("SAND").id, upLeft, upRight, lowLeft, lowRight)){
-                rules = process_rules(particles.at("SAND").id, particles.at("SAND").isDestroyer, {upLeft, upRight, lowLeft, lowRight}, particles.at("SAND").rules, particles.at("SAND").transitions);
+                rules = process_rules(particles.at("SAND").id,  {upLeft, upRight, lowLeft, lowRight}, particles.at("SAND").rules, particles.at("SAND").destroyables, particles.at("SAND").transitions);
                 upLeft = rules[0];
                 upRight = rules[1];
                 lowLeft = rules[2];
@@ -72,7 +72,7 @@ void Think::map_think(int xshift, int yshift) {
             }
 
            if(in_quad(particles.at("WATER").id, upLeft, upRight, lowLeft, lowRight)){
-                rules = process_rules(particles.at("WATER").id, particles.at("WATER").isDestroyer, {upLeft, upRight, lowLeft, lowRight}, particles.at("WATER").rules, particles.at("WATER").transitions);
+                rules = process_rules(particles.at("WATER").id,  {upLeft, upRight, lowLeft, lowRight}, particles.at("WATER").rules, particles.at("WATER").destroyables, particles.at("WATER").transitions);
            
                 upLeft = rules[0];
                 upRight = rules[1];
@@ -81,8 +81,8 @@ void Think::map_think(int xshift, int yshift) {
             }
 
            if(in_quad(particles.at("GAS").id, upLeft, upRight, lowLeft, lowRight)){
-                rules = process_rules(particles.at("GAS").id, particles.at("GAS").isDestroyer, {upLeft, upRight, lowLeft, lowRight}, particles.at("GAS").rules, particles.at("GAS").transitions,
-                                        particles.at("GAS").transitions_p);
+                rules = process_rules(particles.at("GAS").id,  {upLeft, upRight, lowLeft, lowRight}, particles.at("GAS").rules, 
+                               particles.at("GAS").destroyables, particles.at("GAS").transitions, particles.at("GAS").transitions_p);
 
                 upLeft = rules[0];
                 upRight = rules[1];
@@ -92,8 +92,8 @@ void Think::map_think(int xshift, int yshift) {
 
             
            if(in_quad(particles.at("FIRE").id, upLeft, upRight, lowLeft, lowRight)){
-                rules = process_rules(particles.at("FIRE").id, particles.at("FIRE").isDestroyer, {upLeft, upRight, lowLeft, lowRight}, particles.at("FIRE").rules, particles.at("FIRE").transitions,
-                                        particles.at("FIRE").transitions_p);    
+                rules = process_rules(particles.at("FIRE").id, {upLeft, upRight, lowLeft, lowRight}, particles.at("FIRE").rules,
+                 particles.at("FIRE").destroyables, particles.at("FIRE").transitions, particles.at("FIRE").transitions_p);    
                 upLeft = rules[0];
                 upRight = rules[1];
                 lowLeft = rules[2];
@@ -113,22 +113,25 @@ void Think::map_think(int xshift, int yshift) {
 
 }
 
-std::vector<int> Think::process_rules(int material, bool isDestroyer, std::vector<int> state, std::vector<std::vector<int>> rules,
+std::vector<int> Think::process_rules(int material, std::vector<int> state, std::vector<std::vector<int>> rules, std::vector<int> destroyables,
                          std::vector<std::vector<int>> transitions)
 {   
+   // int p = 1+(rand() % 3);
     std::vector<int> rule;
     std::vector<int> transitionN;
     for(int i = 0; i < rules.size(); i++){
+
         rule = {(rules[i][0]*material), (rules[i][1]*material), (rules[i][2]*material), (rules[i][3]*material)};
         if(state[0] == rule[0] && state[1] == rule[1] && state[2] == rule[2] && state[3] == rule[3]){
             transitionN = {(transitions[i][0]*material), (transitions[i][1]*material), (transitions[i][2]*material), (transitions[i][3]*material)};
             return transitionN;
         }
+        
     }
     return state;
 }
 
-std::vector<int> Think::process_rules(int material, bool isDestroyer, std::vector<int> state, std::vector<std::vector<int>> rules, 
+std::vector<int> Think::process_rules(int material, std::vector<int> state, std::vector<std::vector<int>> rules, std::vector<int> destroyables,
                         std::vector<std::vector<int>> transitions, std::vector<std::vector<int>> transitions_p)
 {   
     
@@ -138,21 +141,38 @@ std::vector<int> Think::process_rules(int material, bool isDestroyer, std::vecto
     for(int i = 0; i < rules.size(); i++){
         std::vector<int> transitionN;
         rule = {(rules[i][0]*material), (rules[i][1]*material), (rules[i][2]*material), (rules[i][3]*material)};
-        if(isDestroyer){
+        if(destroyables.size() > 0){
             //Checks particle states in a quad
             for(int j = 0; j < 4; j++)
             {
                 if(rule[j] == 0 && state[j] != material){
                     //Destructable materials
-                    if(state[j] == 0 || state[j] == 1)
+                    if( state[j] > 0)
                     {
-                       if(p == 1 && i < transitions_p.size())
+                        for(auto destroy : destroyables)
+                      { 
+                        if(state[j] == destroy)
+                       { 
+                            if(p == 1 && i < transitions_p.size())
+                            {    
+                                transitionN.push_back(transitions[i][j]*material);
+                                
+                            } else {
+                                transitionN = {material, material, material, material};
+                                
+                            }
+                        }
+                    }
+                    } else if (state[j] == 0 )
+                    {
+                        if(p == 1 && i < transitions_p.size())
                         {    
-                            transitionN.push_back(transitions_p[i][j]*material);
+                            transitionN.push_back(0);
                         } else {
                             transitionN.push_back(transitions[i][j]*material);
                         }
-                    }else{
+                    }
+                    else{
                         transitionN.push_back(state[j]);
                     }
                 }else if (rule[j] == material && state[j] == material){
