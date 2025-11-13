@@ -39,7 +39,14 @@ struct Tile {
     std::string imgSecondPath;
 };
 
-
+struct Material_Lookup {
+    int EMPTY = 0;
+    int WOOD = 1;
+    int SAND = 2;
+    int WATER = 3;
+    int GAS = 4;
+    int FIRE = 5;
+};
 
 
 
