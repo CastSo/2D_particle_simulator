@@ -16,7 +16,7 @@ int YBOUND = 8;
 int XBOUND = 1;
 
 const float POINT_SIZE = 4.0f;
-const float TILE_SIZE = 32.0f;
+const float TILE_SIZE = YBOUND * POINT_SIZE;
 const unsigned int MAX_PARTICLES = ((SCR_WIDTH/ POINT_SIZE) * (SCR_HEIGHT/ POINT_SIZE));
 
 int EMPTY = 0;
@@ -90,7 +90,7 @@ void add_particles(GLFWwindow *window, int id) {
     
     if (id == WOOD)
     {   
-        r = 6;
+        r = 4;
     }
 
 

@@ -39,7 +39,7 @@ void Think::map_think(int xshift, int yshift) {
             int lowRight = MAP[y][x+1];
 
             int state[4]; 
-
+            //Skip if no particle in quad
             if((upLeft == EMPTY && upRight == EMPTY && lowLeft == EMPTY && lowRight == EMPTY) ||
             (upLeft > EMPTY && upRight > EMPTY && lowLeft > EMPTY && lowRight > EMPTY) )
             {
@@ -47,6 +47,7 @@ void Think::map_think(int xshift, int yshift) {
                 continue;
             }
 
+            //Checks if particle type is inside a quad to be processed
             if(in_quad(particles.at("WOOD").id, upLeft, upRight, lowLeft, lowRight))
             {
                    
@@ -112,7 +113,7 @@ void Think::map_think(int xshift, int yshift) {
     }
 
 }
-
+//Particles with ONLY one transition per state
 std::vector<int> Think::process_rules(int material, std::vector<int> state, std::vector<std::vector<int>> rules, std::vector<int> destroyables,
                          std::vector<std::vector<int>> transitions)
 {   
@@ -131,6 +132,7 @@ std::vector<int> Think::process_rules(int material, std::vector<int> state, std:
     return state;
 }
 
+//Particles with more than one transition per state
 std::vector<int> Think::process_rules(int material, std::vector<int> state, std::vector<std::vector<int>> rules, std::vector<int> destroyables,
                         std::vector<std::vector<int>> transitions, std::vector<std::vector<int>> transitions_p)
 {   
@@ -141,6 +143,7 @@ std::vector<int> Think::process_rules(int material, std::vector<int> state, std:
     for(int i = 0; i < rules.size(); i++){
         std::vector<int> transitionN;
         rule = {(rules[i][0]*material), (rules[i][1]*material), (rules[i][2]*material), (rules[i][3]*material)};
+        //Checks if can destroy a particle
         if(destroyables.size() > 0){
             //Checks particle states in a quad
             for(int j = 0; j < 4; j++)
@@ -206,6 +209,7 @@ std::vector<int> Think::process_rules(int material, std::vector<int> state, std:
     }
     return state;
 }
+
 
 bool Think::in_quad(int material, int upLeft, int upRight, int lowLeft, int lowRight)
 {

@@ -4,5 +4,15 @@
 The implementation uses Margolus Neighborhood, where a transition to a new state is determined by a 2X2 cell block.
 The realistic toppling behavior was achieved by iterating over four grid, which forces the nonempty cell to alternate directions for each iteration.[^1]
 
+## CMake build commands 
+
+```
+cd /path/to/2d_particle_simulator
+cmake -S . -B build
+cmake --build build
+cd ./build
+./sand
+```
+
 # Work Cited
 [^1]: Probabilistic Cellular Automata for Granular Media in Video Games, Jonathan Devlin, Micah D. Schuster, https://arxiv.org/pdf/2008.06341
